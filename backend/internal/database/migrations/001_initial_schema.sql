@@ -1,7 +1,7 @@
 -- Migration: 001_initial_schema.sql
 -- Description: Create initial database schema for NSW workflow management system
 -- Created: 2026-01-24
--- Updated: 2026-01-25
+-- Updated: 2026-01-27
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS consignments (
     items JSONB NOT NULL,
     trader_id VARCHAR(255) NOT NULL,
     state VARCHAR(20) NOT NULL CHECK (state IN ('IN_PROGRESS', 'REQUIRES_REWORK', 'FINISHED')),
+    global_context JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     consignment_id UUID NOT NULL,
     step_id VARCHAR(100) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('TRADER_FORM', 'OGA_FORM', 'WAIT_FOR_EVENT', 'DOCUMENT_SUBMISSION', 'PAYMENT')),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('SIMPLE_FORM', 'WAIT_FOR_EVENT')),
     status VARCHAR(20) NOT NULL CHECK (status IN ('LOCKED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'REJECTED')),
     config JSONB NOT NULL,
     depends_on JSONB NOT NULL,

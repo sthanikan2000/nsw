@@ -16,6 +16,7 @@ type InitPayload struct {
 	Type          Type             `json:"type" binding:"required"`          // Type of the task
 	Status        model.TaskStatus `json:"status" binding:"required"`        // Current status of the task
 	CommandSet    json.RawMessage  `json:"config" binding:"required"`        // Configuration specific to the task
+	GlobalContext map[string]interface{}
 }
 
 // ActiveTask represents a task that is currently active in the system.
