@@ -50,6 +50,9 @@ type TaskManager interface {
 
 	// HandleExecuteTask is an HTTP handler for executing a task via POST request
 	HandleExecuteTask(w http.ResponseWriter, r *http.Request)
+
+	// HandleGetTask is an HTTP handler for retrieving a task via GET request
+	HandleGetTask(w http.ResponseWriter, r *http.Request)
 }
 
 // ExecuteTaskRequest represents the request body for task execution
@@ -89,6 +92,40 @@ func NewTaskManager(db *gorm.DB, completionChan chan<- WorkflowManagerNotificati
 		config:         cfg,
 		containerCache: cache,
 	}, nil
+}
+
+// HandleGetTask is an HTTP handler for fetching task information via GET request
+func (tm *taskManager) HandleGetTask(w http.ResponseWriter, r *http.Request) {
+
+	taskId := r.PathValue("id")
+
+	if taskId == "" {
+		writeJSONError(w, http.StatusBadRequest, "taskId is required")
+		return
+	}
+
+	ctx := r.Context()
+
+	taskUUID, err := uuid.Parse(taskId)
+
+	if err != nil || taskUUID == uuid.Nil {
+		writeJSONError(w, http.StatusBadRequest, "taskId is invalid")
+		return
+	}
+
+	activeTask, err := tm.getTask(ctx, taskUUID)
+	if err != nil {
+		writeJSONError(w, http.StatusNotFound, fmt.Sprintf("task %s not found: %v", taskId, err))
+		return
+	}
+
+	result, err := activeTask.GetRenderInfo(ctx)
+
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get render info for task %s: %v", taskId, err))
+	}
+
+	writeJSONResponse(w, http.StatusOK, result)
 }
 
 // HandleExecuteTask is an HTTP handler for executing a task via POST request
