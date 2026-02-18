@@ -6,7 +6,32 @@ We selected [Thunder](https://github.com/asgardeo/thunder) as the Identity Provi
 
 ## Getting Started
 
-To start the IdP server:
+### Quick Start (with defaults)
+
+Start the IdP server with default credentials (admin/admin):
+
+```bash
+docker compose up
+```
+
+### Custom Configuration (optional)
+
+To customize admin credentials or other settings:
+
+1. Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` with your desired values:
+
+```bash
+THUNDER_ADMIN_USERNAME=admin
+THUNDER_ADMIN_PASSWORD=your-secure-password
+```
+
+3. Start the IdP server:
 
 ```bash
 docker compose up
@@ -14,10 +39,12 @@ docker compose up
 
 ### Developer Console Access
 
-Once the services are running, you can access the Thunder developer console at `http://localhost:8090/develop` with the following credentials:
+Once the services are running, access the Thunder developer console at `http://localhost:8090/develop`:
 
-- **Username:** `admin`
-- **Password:** `1234`
+- **Default credentials**: admin/admin
+- **Custom credentials**: Use the values from your `.env` file
+
+> ⚠️ **Security Warning**: The default password should be changed immediately for non-development environments. Always use strong, unique passwords in production or shared environments.
 
 ## Bootstrap Scripts
 

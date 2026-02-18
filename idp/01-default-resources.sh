@@ -18,6 +18,10 @@ done
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]:-$0}")"
 source "${SCRIPT_DIR}/common.sh"
 
+# Set default admin credentials from environment variables or use defaults
+ADMIN_USERNAME="${THUNDER_ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${THUNDER_ADMIN_PASSWORD:-1234}"
+
 log_info "Creating default Thunder resources..."
 echo ""
 
@@ -134,31 +138,31 @@ echo ""
 
 log_info "Creating admin user..."
 
-RESPONSE=$(thunder_api_call POST "/users" '{
-  "type": "Person",
-  "organizationUnit": "'${DEFAULT_OU_ID}'",
-  "attributes": {
-    "username": "admin",
-    "password": "1234",
-    "sub": "admin",
-    "email": "admin@thunder.dev",
-    "email_verified": true,
-    "name": "Administrator",
-    "given_name": "Admin",
-    "family_name": "User",
-    "picture": "https://example.com/avatar.jpg",
-    "phone_number": "+12345678920",
-    "phone_number_verified": true
+RESPONSE=$(thunder_api_call POST "/users" "{
+  \"type\": \"Person\",
+  \"organizationUnit\": \"${DEFAULT_OU_ID}\",
+  \"attributes\": {
+    \"username\": \"${ADMIN_USERNAME}\",
+    \"password\": \"${ADMIN_PASSWORD}\",
+    \"sub\": \"${ADMIN_USERNAME}\",
+    \"email\": \"admin@thunder.dev\",
+    \"email_verified\": true,
+    \"name\": \"Administrator\",
+    \"given_name\": \"Admin\",
+    \"family_name\": \"User\",
+    \"picture\": \"https://example.com/avatar.jpg\",
+    \"phone_number\": \"+12345678920\",
+    \"phone_number_verified\": true
   }
-}')
+}")
 
 HTTP_CODE="${RESPONSE: -3}"
 BODY="${RESPONSE%???}"
 
 if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
     log_success "Admin user created successfully"
-    log_info "Username: admin"
-    log_info "Password: 1234"
+    log_info "Username: ${ADMIN_USERNAME}"
+    log_info "Password: ${ADMIN_PASSWORD}"
 
     # Extract admin user ID
     ADMIN_USER_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -862,7 +866,7 @@ echo ""
 log_success "Default resources setup completed successfully!"
 echo ""
 log_info "👤 Admin credentials:"
-log_info "   Username: admin"
-log_info "   Password: 1234"
+log_info "   Username: ${ADMIN_USERNAME}"
+log_info "   Password: ${ADMIN_PASSWORD}"
 log_info "   Role: Administrator (system permission)"
 echo ""
