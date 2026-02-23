@@ -223,7 +223,8 @@ read -r -d '' TRADER_PORTAL_APP_PAYLOAD <<JSON || true
             "config": {
                 "client_id": "TRADER_PORTAL_APP",
                 "redirect_uris": [
-                    "http://localhost:5173"
+                    "http://localhost:5173",
+                    "https://localhost:5173"
                 ],
                 "grant_types": [
                     "authorization_code",
