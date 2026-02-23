@@ -566,6 +566,7 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(_ context.Context, consig
 			},
 			State:         node.State,
 			ExtendedState: node.ExtendedState,
+			Outcome:       node.Outcome,
 			DependsOn:     node.DependsOn,
 		})
 	}

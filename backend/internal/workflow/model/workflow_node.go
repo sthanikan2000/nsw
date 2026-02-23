@@ -28,11 +28,12 @@ const (
 // WorkflowNodeTemplate represents a template for a workflow node.
 type WorkflowNodeTemplate struct {
 	BaseModel
-	Name        string          `gorm:"type:varchar(255);column:name;not null" json:"name"`                      // Human-readable name of the workflow node template
-	Description string          `gorm:"type:text;column:description" json:"description"`                         // Optional description of the workflow node template
-	Type        taskPlugin.Type `gorm:"type:varchar(50);column:type;not null" json:"type"`                       // Type of the workflow node
-	Config      json.RawMessage `gorm:"type:jsonb;column:config;not null;serializer:json" json:"config"`         // Configuration specific to the workflow node type
-	DependsOn   UUIDArray       `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"` // Array of workflow node template IDs this node depends on
+	Name                string          `gorm:"type:varchar(255);column:name;not null" json:"name"`                                          // Human-readable name of the workflow node template
+	Description         string          `gorm:"type:text;column:description" json:"description"`                                             // Optional description of the workflow node template
+	Type                taskPlugin.Type `gorm:"type:varchar(50);column:type;not null" json:"type"`                                           // Type of the workflow node
+	Config              json.RawMessage `gorm:"type:jsonb;column:config;not null;serializer:json" json:"config"`                             // Configuration specific to the workflow node type
+	DependsOn           UUIDArray       `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node template IDs this node depends on
+	UnlockConfiguration *UnlockConfig   `gorm:"type:jsonb;column:unlock_configuration;serializer:json" json:"unlockConfiguration,omitempty"` // Optional conditional unlock configuration (DNF expression). If nil, DependsOn uses AND-all logic.
 }
 
 func (wnt *WorkflowNodeTemplate) TableName() string {
@@ -42,12 +43,14 @@ func (wnt *WorkflowNodeTemplate) TableName() string {
 // WorkflowNode represents an instance of a workflow node within a workflow.
 type WorkflowNode struct {
 	BaseModel
-	ConsignmentID          *uuid.UUID        `gorm:"type:uuid;column:consignment_id" json:"consignmentId"`                              // Reference to the Consignment, Null if PreConsignment nodes
-	PreConsignmentID       *uuid.UUID        `gorm:"type:uuid;column:pre_consignment_id" json:"preConsignmentId"`                       // Reference to the PreConsignment, Null if Consignment nodes
-	WorkflowNodeTemplateID uuid.UUID         `gorm:"type:uuid;column:workflow_node_template_id;not null" json:"workflowNodeTemplateId"` // Reference to the WorkflowNodeTemplate
-	State                  WorkflowNodeState `gorm:"type:varchar(50);column:state;not null" json:"state"`                               // State of the workflow node
-	ExtendedState          *string           `gorm:"type:text;column:extended_state" json:"extendedState"`                              // Optional extended state information (e.g., error details)
-	DependsOn              UUIDArray         `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`           // Array of workflow node IDs this node depends on
+	ConsignmentID          *uuid.UUID        `gorm:"type:uuid;column:consignment_id" json:"consignmentId"`                                        // Reference to the Consignment, Null if PreConsignment nodes
+	PreConsignmentID       *uuid.UUID        `gorm:"type:uuid;column:pre_consignment_id" json:"preConsignmentId"`                                 // Reference to the PreConsignment, Null if Consignment nodes
+	WorkflowNodeTemplateID uuid.UUID         `gorm:"type:uuid;column:workflow_node_template_id;not null" json:"workflowNodeTemplateId"`           // Reference to the WorkflowNodeTemplate
+	State                  WorkflowNodeState `gorm:"type:varchar(50);column:state;not null" json:"state"`                                         // State of the workflow node
+	ExtendedState          *string           `gorm:"type:text;column:extended_state" json:"extendedState"`                                        // Optional extended state information (e.g., error details)
+	Outcome                *string           `gorm:"type:varchar(100);column:outcome" json:"outcome,omitempty"`                                   // Outcome sub-state when COMPLETED (e.g., APPROVED, REJECTED)
+	DependsOn              UUIDArray         `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node IDs this node depends on
+	UnlockConfiguration    *UnlockConfig     `gorm:"type:jsonb;column:unlock_configuration;serializer:json" json:"unlockConfiguration,omitempty"` // Resolved instance-level unlock configuration
 
 	// Relationships
 	Consignment          *Consignment         `gorm:"foreignKey:ConsignmentID;references:ID" json:"-"`                             // Associated Consignment
@@ -65,6 +68,7 @@ type UpdateWorkflowNodeDTO struct {
 	State               WorkflowNodeState `json:"state"`                             // New state of the workflow node
 	AppendGlobalContext map[string]any    `json:"appendGlobalContext,omitempty"`     // Additional global context to append to the consignment (optional)
 	ExtendedState       *string           `json:"extendedState,omitempty"`           // Optional extended state information (e.g., error details)
+	Outcome             *string           `json:"outcome,omitempty"`                 // Outcome sub-state for COMPLETED transitions (e.g., APPROVED, REJECTED)
 }
 
 // WorkflowNodeResponseDTO represents a workflow node in the response.
@@ -75,6 +79,7 @@ type WorkflowNodeResponseDTO struct {
 	WorkflowNodeTemplate WorkflowNodeTemplateResponseDTO `json:"workflowNodeTemplate"`    // Workflow node template details
 	State                WorkflowNodeState               `json:"state"`                   // State of the workflow node
 	ExtendedState        *string                         `json:"extendedState,omitempty"` // Optional extended state information (e.g., error details)
+	Outcome              *string                         `json:"outcome,omitempty"`       // Outcome sub-state when COMPLETED
 	DependsOn            []uuid.UUID                     `json:"depends_on"`              // Array of workflow node IDs this node depends on
 }
 

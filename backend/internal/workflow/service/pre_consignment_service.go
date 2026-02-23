@@ -359,7 +359,13 @@ func (s *PreConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(c
 		}
 
 		if workflowNode.State != model.WorkflowNodeStateCompleted {
-			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq)
+			// Build completion config from the pre-consignment's workflow template
+			completionConfig, err := s.getCompletionConfig(ctx, *workflowNode.PreConsignmentID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get completion config: %w", err)
+			}
+
+			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq, completionConfig)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to transition node to COMPLETED: %w", err)
 			}
@@ -406,6 +412,26 @@ func (s *PreConsignmentService) markPreConsignmentAsCompleted(ctx context.Contex
 	}
 
 	return nil
+}
+
+// getCompletionConfig builds a WorkflowCompletionConfig for a pre-consignment by looking up
+// the workflow template's EndNodeTemplateID via pre-consignment → pre-consignment template → workflow template.
+func (s *PreConsignmentService) getCompletionConfig(ctx context.Context, preConsignmentID uuid.UUID) (*WorkflowCompletionConfig, error) {
+	var preConsignment model.PreConsignment
+	if err := s.db.WithContext(ctx).
+		Preload("PreConsignmentTemplate").
+		First(&preConsignment, "id = ?", preConsignmentID).Error; err != nil {
+		return nil, fmt.Errorf("failed to retrieve pre-consignment %s: %w", preConsignmentID, err)
+	}
+
+	workflowTemplate, err := s.templateProvider.GetWorkflowTemplateByID(ctx, preConsignment.PreConsignmentTemplate.WorkflowTemplateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow template %s: %w", preConsignment.PreConsignmentTemplate.WorkflowTemplateID, err)
+	}
+
+	return &WorkflowCompletionConfig{
+		EndNodeTemplateID: workflowTemplate.EndNodeTemplateID,
+	}, nil
 }
 
 // syncTraderContextToAuth synchronizes the pre-consignment trader context to the auth system.
@@ -503,6 +529,7 @@ func (s *PreConsignmentService) buildPreConsignmentResponseDTO(preConsignment *m
 			},
 			State:         node.State,
 			ExtendedState: node.ExtendedState,
+			Outcome:       node.Outcome,
 			DependsOn:     node.DependsOn,
 		})
 	}
