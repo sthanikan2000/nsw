@@ -296,6 +296,13 @@ func (s *ConsignmentService) GetConsignmentsByTraderID(ctx context.Context, trad
 		c := consignments[i]
 		counts := countsMap[c.ID]
 
+		// If EndNodeID is set, we need to subtract it from total count if it exists in the workflow nodes for accurate reporting (since it's an internal implementation detail)
+		if c.EndNodeID != nil {
+			if counts.Total > 0 {
+				counts.Total -= 1
+			}
+		}
+
 		// Build Item Response DTOs
 		itemResponseDTOs, err := s.buildConsignmentItemResponseDTOs(c.Items, hsLoader)
 		if err != nil {
@@ -572,6 +579,10 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(_ context.Context, consig
 	// Build WorkflowNodeResponseDTOs using preloaded templates
 	nodeResponseDTOs := make([]model.WorkflowNodeResponseDTO, 0, len(consignment.WorkflowNodes))
 	for _, node := range consignment.WorkflowNodes {
+		// Exclude the EndNode Refrence in the response if it exists, as it's an internal implementation detail
+		if consignment.EndNodeID != nil && node.ID == *consignment.EndNodeID {
+			continue
+		}
 		nodeResponseDTOs = append(nodeResponseDTOs, model.WorkflowNodeResponseDTO{
 			ID:        node.ID,
 			CreatedAt: node.CreatedAt.Format(time.RFC3339),
