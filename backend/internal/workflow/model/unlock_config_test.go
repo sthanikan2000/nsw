@@ -87,9 +87,7 @@ func TestUnlockConfig_Validate(t *testing.T) {
 				},
 			},
 		}
-		err := uc.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "must specify at least one of state or outcome")
+		assert.NoError(t, uc.Validate())
 	})
 
 	t.Run("Empty State String", func(t *testing.T) {

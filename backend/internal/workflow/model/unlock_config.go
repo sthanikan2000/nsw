@@ -3,12 +3,13 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
 
 // UnlockCondition represents a single condition that checks a specific dependency node's state and/or outcome.
-// Both State and Outcome are optional, but at least one must be specified.
+// Both State and Outcome are optional.
 // When both are specified, they are combined with AND logic (both must match).
 // Used within UnlockGroup to form AND conditions across multiple nodes.
 type UnlockCondition struct {
@@ -70,13 +71,10 @@ func (uc *UnlockConfig) Validate() error {
 			if cond.NodeTemplateID == uuid.Nil {
 				return fmt.Errorf("unlock configuration group %d condition %d has nil nodeTemplateId", i, j)
 			}
-			if cond.State == nil && cond.Outcome == nil {
-				return fmt.Errorf("unlock configuration group %d condition %d must specify at least one of state or outcome", i, j)
-			}
-			if cond.State != nil && *cond.State == "" {
+			if cond.State != nil && len(strings.TrimSpace(*cond.State)) == 0 {
 				return fmt.Errorf("unlock configuration group %d condition %d has empty state", i, j)
 			}
-			if cond.Outcome != nil && *cond.Outcome == "" {
+			if cond.Outcome != nil && len(strings.TrimSpace(*cond.Outcome)) == 0 {
 				return fmt.Errorf("unlock configuration group %d condition %d has empty outcome", i, j)
 			}
 		}
@@ -124,7 +122,7 @@ func (uc *UnlockConfig) Evaluate(nodeMap map[uuid.UUID]WorkflowNode) bool {
 // evaluateGroup checks if all conditions in a group are satisfied (AND).
 func (uc *UnlockConfig) evaluateGroup(group UnlockGroup, nodeMap map[uuid.UUID]WorkflowNode) bool {
 	for _, cond := range group.AllOf {
-		node, exists := nodeMap[cond.NodeTemplateID] // At instance level, NodeTemplateID holds the node instance ID
+		node, exists := nodeMap[cond.NodeTemplateID] // After resolution, NodeTemplateID holds the node instance ID
 		if !exists {
 			return false
 		}

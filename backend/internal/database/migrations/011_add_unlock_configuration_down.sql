@@ -13,3 +13,6 @@ ALTER TABLE workflow_nodes
 
 ALTER TABLE workflow_node_templates
     DROP COLUMN IF EXISTS unlock_configuration;
+
+ALTER TABLE consignments
+    DROP COLUMN IF EXISTS end_node_id;

@@ -104,10 +104,18 @@ func (s *ConsignmentService) initializeConsignmentInTx(ctx context.Context, crea
 	}
 
 	// Create Workflow Nodes
-	_, newReadyWorkflowNodes, err := s.createWorkflowNodesInTx(ctx, tx, consignment.ID, workflowTemplates)
+	_, newReadyWorkflowNodes, endNode, err := s.createWorkflowNodesInTx(ctx, tx, consignment.ID, workflowTemplates)
 	if err != nil {
 		tx.Rollback()
 		return nil, nil, fmt.Errorf("failed to create workflow nodes: %w", err)
+	}
+
+	if endNode != nil {
+		consignment.EndNodeID = &endNode.ID
+		if err := tx.Save(consignment).Error; err != nil {
+			tx.Rollback()
+			return nil, nil, fmt.Errorf("failed to update consignment with end node ID: %w", err)
+		}
 	}
 
 	// Execute pre-commit validation callback if set (e.g., task manager registration)
@@ -146,7 +154,7 @@ func (s *ConsignmentService) initializeConsignmentInTx(ctx context.Context, crea
 }
 
 // createWorkflowNodesInTx builds workflow nodes for the consignment within a transaction.
-func (s *ConsignmentService) createWorkflowNodesInTx(ctx context.Context, tx *gorm.DB, consignmentID uuid.UUID, workflowTemplates []model.WorkflowTemplate) ([]model.WorkflowNode, []model.WorkflowNode, error) {
+func (s *ConsignmentService) createWorkflowNodesInTx(ctx context.Context, tx *gorm.DB, consignmentID uuid.UUID, workflowTemplates []model.WorkflowTemplate) ([]model.WorkflowNode, []model.WorkflowNode, *model.WorkflowNode, error) {
 	// Collect unique node template IDs from all workflow templates
 	uniqueNodeTemplateIDs := make(map[uuid.UUID]bool)
 	for _, wt := range workflowTemplates {
@@ -164,11 +172,11 @@ func (s *ConsignmentService) createWorkflowNodesInTx(ctx context.Context, tx *go
 
 	nodeTemplates, err := s.templateProvider.GetWorkflowNodeTemplatesByIDs(ctx, nodeTemplateIDsList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to retrieve workflow node templates: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to retrieve workflow node templates: %w", err)
 	}
 
 	// Delegate to the state machine for node initialization
-	return s.stateMachine.InitializeNodesFromTemplates(ctx, tx, ParentRef{ConsignmentID: &consignmentID}, nodeTemplates)
+	return s.stateMachine.InitializeNodesFromTemplates(ctx, tx, ParentRef{ConsignmentID: &consignmentID}, nodeTemplates, workflowTemplates)
 }
 
 // GetConsignmentByID retrieves a consignment by its ID from the database.
@@ -431,14 +439,23 @@ func (s *ConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(ctx 
 
 	case model.WorkflowNodeStateCompleted:
 		if workflowNode.State != model.WorkflowNodeStateCompleted {
-			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq)
+			// Load the consignment to get the HS code and workflow template
+			var consignment model.Consignment
+			if err := tx.WithContext(ctx).First(&consignment, "id = ?", workflowNode.ConsignmentID).Error; err != nil {
+				return nil, nil, fmt.Errorf("failed to retrieve consignment %s: %w", workflowNode.ConsignmentID, err)
+			}
+
+			completionConfig := WorkflowCompletionConfig{
+				EndNodeID: consignment.EndNodeID,
+			}
+			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq, &completionConfig)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to transition node to COMPLETED: %w", err)
 			}
 			newReadyNodes = result.NewReadyNodes
 
 			// Update consignment state if all nodes are completed
-			if result.AllNodesCompleted {
+			if result.WorkflowFinished {
 				if err := s.markConsignmentAsFinished(ctx, tx, *workflowNode.ConsignmentID); err != nil {
 					return nil, nil, err
 				}

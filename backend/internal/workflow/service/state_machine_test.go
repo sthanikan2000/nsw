@@ -95,7 +95,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, result.UpdatedNodes)
 		assert.Empty(t, result.NewReadyNodes)
-		assert.False(t, result.AllNodesCompleted)
+		assert.False(t, result.WorkflowFinished)
 	})
 
 	t.Run("Invalid State Transition", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.UpdatedNodes, 1)
 		assert.Equal(t, model.WorkflowNodeStateCompleted, result.UpdatedNodes[0].State)
-		assert.True(t, result.AllNodesCompleted)
+		assert.True(t, result.WorkflowFinished)
 	})
 
 	t.Run("Unlock Dependent Nodes", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.Len(t, result.UpdatedNodes, 2)
 		assert.Len(t, result.NewReadyNodes, 1)
 		assert.Equal(t, dependentNodeID, result.NewReadyNodes[0].ID)
-		assert.False(t, result.AllNodesCompleted)
+		assert.False(t, result.WorkflowFinished)
 	})
 }
 
@@ -209,7 +209,7 @@ func TestInitializeNodesFromTemplates(t *testing.T) {
 			return len(nodes) == 2
 		})).Return(nil).Once()
 
-		createdNodes, newReadyNodes, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates)
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
 		assert.NoError(t, err)
 		assert.Len(t, createdNodes, 2)
 		assert.Len(t, newReadyNodes, 1)
@@ -247,7 +247,7 @@ func TestInitializeNodesFromTemplates(t *testing.T) {
 
 		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.Anything).Return(nil).Once()
 
-		createdNodes, newReadyNodes, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates)
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
 		assert.NoError(t, err)
 		assert.Len(t, createdNodes, 1)
 		assert.Len(t, newReadyNodes, 1)
@@ -562,9 +562,9 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("End Node Completed - Workflow Done", func(t *testing.T) {
-		endNodeTemplateID := uuid.New()
+		endNodeID := uuid.New()
 		otherTemplateID := uuid.New()
-		nodeAID := uuid.New()
+		nodeAID := endNodeID
 		nodeBID := uuid.New()
 		consignmentID := uuid.New()
 
@@ -572,7 +572,7 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		nodeA := &model.WorkflowNode{
 			BaseModel:              model.BaseModel{ID: nodeAID},
 			ConsignmentID:          &consignmentID,
-			WorkflowNodeTemplateID: endNodeTemplateID,
+			WorkflowNodeTemplateID: uuid.New(),
 			State:                  model.WorkflowNodeStateInProgress,
 		}
 
@@ -591,19 +591,19 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
 
 		completionConfig := &WorkflowCompletionConfig{
-			EndNodeTemplateID: &endNodeTemplateID,
+			EndNodeID: &endNodeID,
 		}
 
 		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
 		assert.NoError(t, err)
-		assert.True(t, result.AllNodesCompleted, "workflow should be complete when end node is completed")
+		assert.True(t, result.WorkflowFinished, "workflow should be complete when end node is completed")
 	})
 
 	t.Run("Non-End Node Completed - Workflow Not Done", func(t *testing.T) {
-		endNodeTemplateID := uuid.New()
+		endNodeID := uuid.New()
 		otherTemplateID := uuid.New()
 		nodeAID := uuid.New()
-		nodeBID := uuid.New()
+		nodeBID := endNodeID
 		consignmentID := uuid.New()
 
 		// Node A is NOT the end node, is being completed
@@ -618,9 +618,9 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		nodeB := model.WorkflowNode{
 			BaseModel:              model.BaseModel{ID: nodeBID},
 			ConsignmentID:          &consignmentID,
-			WorkflowNodeTemplateID: endNodeTemplateID,
+			WorkflowNodeTemplateID: uuid.New(),
 			State:                  model.WorkflowNodeStateLocked,
-			DependsOn:              model.UUIDArray{nodeAID},
+			DependsOn:              model.UUIDArray{uuid.New()},
 		}
 
 		updateReq := &model.UpdateWorkflowNodeDTO{}
@@ -629,15 +629,15 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
 
 		completionConfig := &WorkflowCompletionConfig{
-			EndNodeTemplateID: &endNodeTemplateID,
+			EndNodeID: &endNodeID,
 		}
 
 		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
 		assert.NoError(t, err)
-		assert.False(t, result.AllNodesCompleted, "workflow should not be complete when end node is still locked")
+		assert.False(t, result.WorkflowFinished, "workflow should not be complete when end node is still locked")
 	})
 
-	t.Run("No EndNodeTemplateID - Falls Back To All Nodes", func(t *testing.T) {
+	t.Run("No EndNodeID - Falls Back To All Nodes", func(t *testing.T) {
 		nodeAID := uuid.New()
 		nodeBID := uuid.New()
 		consignmentID := uuid.New()
@@ -663,10 +663,10 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		// No completion config (nil) — should fall back to all-nodes-completed check
 		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
 		assert.NoError(t, err)
-		assert.False(t, result.AllNodesCompleted, "workflow should not be complete when not all nodes are completed (legacy behavior)")
+		assert.False(t, result.WorkflowFinished, "workflow should not be complete when not all nodes are completed (legacy behavior)")
 	})
 
-	t.Run("Nil EndNodeTemplateID In Config - Falls Back To All Nodes", func(t *testing.T) {
+	t.Run("Nil EndNodeID In Config - Falls Back To All Nodes", func(t *testing.T) {
 		nodeAID := uuid.New()
 		consignmentID := uuid.New()
 
@@ -682,12 +682,12 @@ func TestEndNodeWorkflowCompletion(t *testing.T) {
 		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
 
 		completionConfig := &WorkflowCompletionConfig{
-			EndNodeTemplateID: nil, // Explicitly nil
+			EndNodeID: nil, // Explicitly nil
 		}
 
 		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
 		assert.NoError(t, err)
-		assert.True(t, result.AllNodesCompleted, "single node completed = all nodes completed (legacy behavior)")
+		assert.True(t, result.WorkflowFinished, "single node completed = all nodes completed (legacy behavior)")
 	})
 }
 
@@ -761,7 +761,7 @@ func TestInitializeNodesWithUnlockConfiguration(t *testing.T) {
 			return true
 		})).Return(nil).Once()
 
-		createdNodes, newReadyNodes, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates)
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
 		assert.NoError(t, err)
 		assert.Len(t, createdNodes, 2)
 		assert.Len(t, newReadyNodes, 1)

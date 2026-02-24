@@ -26,6 +26,7 @@ type Consignment struct {
 	State         ConsignmentState  `gorm:"type:varchar(50);column:state;not null" json:"state"`                            // State of the consignment
 	Items         []ConsignmentItem `gorm:"type:jsonb;column:items;serializer:json;not null" json:"items"`                  // Items in the consignment
 	GlobalContext map[string]any    `gorm:"type:jsonb;column:global_context;serializer:json;not null" json:"globalContext"` // Global context for the consignment
+	EndNodeID     *uuid.UUID        `gorm:"type:uuid;column:end_node_id" json:"endNodeId,omitempty"`                        // Optional reference to the end workflow node, used for quick lookup of completion status
 
 	// Relationships
 	WorkflowNodes []WorkflowNode `gorm:"foreignKey:ConsignmentID;references:ID" json:"-"` // Associated WorkflowNodes

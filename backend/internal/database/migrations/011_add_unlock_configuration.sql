@@ -30,3 +30,10 @@ ALTER TABLE workflow_templates
     ADD CONSTRAINT fk_workflow_templates_end_node_template
         FOREIGN KEY (end_node_template_id) REFERENCES workflow_node_templates(id)
         ON DELETE SET NULL ON UPDATE CASCADE;
+
+--- ============================================================================
+-- Alter: consignments
+-- Description: Add end_node_id to track the end node of a consignment's workflow
+-- ============================================================================
+ALTER TABLE consignments
+    ADD COLUMN IF NOT EXISTS end_node_id UUID;

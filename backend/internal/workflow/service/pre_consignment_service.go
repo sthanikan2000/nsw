@@ -222,8 +222,8 @@ func (s *PreConsignmentService) initializePreConsignmentInTx(
 	}
 
 	// Create workflow nodes using the state machine
-	_, newReadyWorkflowNodes, err := s.stateMachine.InitializeNodesFromTemplates(
-		ctx, tx, ParentRef{PreConsignmentID: &preConsignment.ID}, nodeTemplates,
+	_, newReadyWorkflowNodes, _, err := s.stateMachine.InitializeNodesFromTemplates(
+		ctx, tx, ParentRef{PreConsignmentID: &preConsignment.ID}, nodeTemplates, []model.WorkflowTemplate{*workflowTemplate},
 	)
 	if err != nil {
 		tx.Rollback()
@@ -359,13 +359,11 @@ func (s *PreConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(c
 		}
 
 		if workflowNode.State != model.WorkflowNodeStateCompleted {
-			// Build completion config from the pre-consignment's workflow template
-			completionConfig, err := s.getCompletionConfig(ctx, *workflowNode.PreConsignmentID)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get completion config: %w", err)
+			if workflowNode.PreConsignmentID == nil {
+				return nil, nil, fmt.Errorf("node %s is not associated with a pre-consignment", workflowNode.ID)
 			}
 
-			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq, completionConfig)
+			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to transition node to COMPLETED: %w", err)
 			}
@@ -373,7 +371,7 @@ func (s *PreConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(c
 
 			// Mark pre-consignment as completed if all nodes are done
 			// This will sync the updated trader context to auth
-			if result.AllNodesCompleted {
+			if result.WorkflowFinished {
 				if err := s.markPreConsignmentAsCompleted(ctx, tx, *workflowNode.PreConsignmentID); err != nil {
 					return nil, nil, err
 				}
@@ -412,26 +410,6 @@ func (s *PreConsignmentService) markPreConsignmentAsCompleted(ctx context.Contex
 	}
 
 	return nil
-}
-
-// getCompletionConfig builds a WorkflowCompletionConfig for a pre-consignment by looking up
-// the workflow template's EndNodeTemplateID via pre-consignment → pre-consignment template → workflow template.
-func (s *PreConsignmentService) getCompletionConfig(ctx context.Context, preConsignmentID uuid.UUID) (*WorkflowCompletionConfig, error) {
-	var preConsignment model.PreConsignment
-	if err := s.db.WithContext(ctx).
-		Preload("PreConsignmentTemplate").
-		First(&preConsignment, "id = ?", preConsignmentID).Error; err != nil {
-		return nil, fmt.Errorf("failed to retrieve pre-consignment %s: %w", preConsignmentID, err)
-	}
-
-	workflowTemplate, err := s.templateProvider.GetWorkflowTemplateByID(ctx, preConsignment.PreConsignmentTemplate.WorkflowTemplateID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow template %s: %w", preConsignment.PreConsignmentTemplate.WorkflowTemplateID, err)
-	}
-
-	return &WorkflowCompletionConfig{
-		EndNodeTemplateID: workflowTemplate.EndNodeTemplateID,
-	}, nil
 }
 
 // syncTraderContextToAuth synchronizes the pre-consignment trader context to the auth system.

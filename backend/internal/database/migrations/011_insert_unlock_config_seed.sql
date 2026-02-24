@@ -1,4 +1,4 @@
--- Migration: 012_insert_unlock_config_seed.sql
+-- Migration: 011_insert_unlock_config_seed.sql
 -- Description: Insert seed data for a workflow template that uses unlock_configuration
 --              and end_node_template_id features for Fresh Coconut (0801.12.00) export.
 -- Created: 2026-02-23
@@ -104,7 +104,7 @@ VALUES
      'Final Processing',
      'Final processing step — unlocks when both certificates are completed, or customs was fast-tracked',
      'WAIT_FOR_EVENT',
-     '{"event": "WAIT_FOR_EVENT", "externalServiceUrl": "http://localhost:3001/api/process-task"}'::jsonb,
+     '{"event": "WAIT_FOR_EVENT"}'::jsonb,
      '["e1a00001-0001-4000-b000-000000000003", "e1a00001-0001-4000-b000-000000000004"]'::jsonb,
      '{
        "anyOf": [
@@ -121,6 +121,20 @@ VALUES
          }
        ]
      }'::jsonb);
+
+-- ============================================================================
+-- Add a dummy end node template for the workflow to reference (since end_node_template_id is required)
+-- This node won't actually be used in the workflow since the final processing node is the logical end node, but we need a valid UUID to satisfy the foreign key constraint.
+-- ============================================================================
+INSERT INTO workflow_node_templates (id, name, description, type, config, depends_on, unlock_configuration)
+VALUES
+    ('e1a00001-0001-4000-b000-000000000006',
+     'End Node Placeholder',
+     'Placeholder end node template to satisfy end_node_template_id requirement',
+     'SIMPLE_FORM',
+     '{}'::jsonb,
+     '[]'::jsonb,
+     NULL);
 
 -- ============================================================================
 -- Workflow Template: Fresh Coconut Export (with end_node_template_id)
