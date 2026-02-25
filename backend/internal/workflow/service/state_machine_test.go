@@ -12,6 +12,8 @@ import (
 	"github.com/OpenNSW/nsw/internal/workflow/model"
 )
 
+func strPtr(s string) *string { return &s }
+
 // MockWorkflowNodeRepository is a mock implementation of WorkflowNodeRepository
 type MockWorkflowNodeRepository struct {
 	mock.Mock
@@ -93,7 +95,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, result.UpdatedNodes)
 		assert.Empty(t, result.NewReadyNodes)
-		assert.False(t, result.AllNodesCompleted)
+		assert.False(t, result.WorkflowFinished)
 	})
 
 	t.Run("Invalid State Transition", func(t *testing.T) {
@@ -126,7 +128,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.UpdatedNodes, 1)
 		assert.Equal(t, model.WorkflowNodeStateCompleted, result.UpdatedNodes[0].State)
-		assert.True(t, result.AllNodesCompleted)
+		assert.True(t, result.WorkflowFinished)
 	})
 
 	t.Run("Unlock Dependent Nodes", func(t *testing.T) {
@@ -157,7 +159,7 @@ func TestTransitionToCompleted(t *testing.T) {
 		assert.Len(t, result.UpdatedNodes, 2)
 		assert.Len(t, result.NewReadyNodes, 1)
 		assert.Equal(t, dependentNodeID, result.NewReadyNodes[0].ID)
-		assert.False(t, result.AllNodesCompleted)
+		assert.False(t, result.WorkflowFinished)
 	})
 }
 
@@ -207,7 +209,7 @@ func TestInitializeNodesFromTemplates(t *testing.T) {
 			return len(nodes) == 2
 		})).Return(nil).Once()
 
-		createdNodes, newReadyNodes, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates)
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
 		assert.NoError(t, err)
 		assert.Len(t, createdNodes, 2)
 		assert.Len(t, newReadyNodes, 1)
@@ -245,7 +247,7 @@ func TestInitializeNodesFromTemplates(t *testing.T) {
 
 		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.Anything).Return(nil).Once()
 
-		createdNodes, newReadyNodes, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates)
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
 		assert.NoError(t, err)
 		assert.Len(t, createdNodes, 1)
 		assert.Len(t, newReadyNodes, 1)
@@ -336,5 +338,500 @@ func TestTransitionToInProgress(t *testing.T) {
 
 		err := sm.TransitionToInProgress(ctx, nil, node, &model.UpdateWorkflowNodeDTO{})
 		assert.Error(t, err)
+	})
+}
+
+func TestTransitionToCompletedWithOutcome(t *testing.T) {
+	mockRepo := new(MockWorkflowNodeRepository)
+	sm := NewWorkflowNodeStateMachine(mockRepo)
+	ctx := context.Background()
+
+	t.Run("Outcome Set On Completion", func(t *testing.T) {
+		nodeID := uuid.New()
+		consignmentID := uuid.New()
+		node := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+		outcome := "APPROVED"
+		updateReq := &model.UpdateWorkflowNodeDTO{
+			Outcome: &outcome,
+		}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*node}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			return len(nodes) == 1 && nodes[0].Outcome != nil && *nodes[0].Outcome == "APPROVED"
+		})).Return(nil).Once()
+
+		result, err := sm.TransitionToCompleted(ctx, nil, node, updateReq)
+		assert.NoError(t, err)
+		assert.Len(t, result.UpdatedNodes, 1)
+		assert.Equal(t, model.WorkflowNodeStateCompleted, result.UpdatedNodes[0].State)
+		assert.NotNil(t, result.UpdatedNodes[0].Outcome)
+		assert.Equal(t, "APPROVED", *result.UpdatedNodes[0].Outcome)
+	})
+}
+
+func TestUnlockWithUnlockConfiguration(t *testing.T) {
+	mockRepo := new(MockWorkflowNodeRepository)
+	sm := NewWorkflowNodeStateMachine(mockRepo)
+	ctx := context.Background()
+
+	t.Run("Condition Met - Unlock Dependent", func(t *testing.T) {
+		nodeAID := uuid.New()
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		// Node B has an UnlockConfiguration that requires Node A to be COMPLETED with outcome APPROVED
+		nodeB := model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeBID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateLocked,
+			DependsOn:     model.UUIDArray{nodeAID},
+			UnlockConfiguration: &model.UnlockConfig{
+				AnyOf: []model.UnlockGroup{
+					{
+						AllOf: []model.UnlockCondition{
+							{NodeTemplateID: nodeAID, NodeID: &nodeAID, State: strPtr("COMPLETED"), Outcome: strPtr("APPROVED")},
+						},
+					},
+				},
+			},
+		}
+
+		outcome := "APPROVED"
+		updateReq := &model.UpdateWorkflowNodeDTO{
+			Outcome: &outcome,
+		}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			return len(nodes) == 2
+		})).Return(nil).Once()
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
+		assert.NoError(t, err)
+		assert.Len(t, result.NewReadyNodes, 1)
+		assert.Equal(t, nodeBID, result.NewReadyNodes[0].ID)
+	})
+
+	t.Run("Condition Not Met - Wrong Outcome", func(t *testing.T) {
+		nodeAID := uuid.New()
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		nodeB := model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeBID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateLocked,
+			DependsOn:     model.UUIDArray{nodeAID},
+			UnlockConfiguration: &model.UnlockConfig{
+				AnyOf: []model.UnlockGroup{
+					{
+						AllOf: []model.UnlockCondition{
+							{NodeTemplateID: nodeAID, NodeID: &nodeAID, Outcome: strPtr("APPROVED")},
+						},
+					},
+				},
+			},
+		}
+
+		outcome := "REJECTED"
+		updateReq := &model.UpdateWorkflowNodeDTO{
+			Outcome: &outcome,
+		}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			// Only node A should be updated (to COMPLETED), node B stays LOCKED
+			return len(nodes) == 1
+		})).Return(nil).Once()
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
+		assert.NoError(t, err)
+		assert.Empty(t, result.NewReadyNodes, "node B should not be unlocked with wrong outcome")
+	})
+
+	t.Run("OR Condition - Second Group Met", func(t *testing.T) {
+		nodeAID := uuid.New()
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		// Node B unlocks if A has outcome APPROVED OR A has outcome FAST_TRACKED
+		nodeB := model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeBID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateLocked,
+			DependsOn:     model.UUIDArray{nodeAID},
+			UnlockConfiguration: &model.UnlockConfig{
+				AnyOf: []model.UnlockGroup{
+					{
+						AllOf: []model.UnlockCondition{
+							{NodeTemplateID: nodeAID, NodeID: &nodeAID, Outcome: strPtr("APPROVED")},
+						},
+					},
+					{
+						AllOf: []model.UnlockCondition{
+							{NodeTemplateID: nodeAID, NodeID: &nodeAID, Outcome: strPtr("FAST_TRACKED")},
+						},
+					},
+				},
+			},
+		}
+
+		outcome := "FAST_TRACKED"
+		updateReq := &model.UpdateWorkflowNodeDTO{
+			Outcome: &outcome,
+		}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			return len(nodes) == 2
+		})).Return(nil).Once()
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
+		assert.NoError(t, err)
+		assert.Len(t, result.NewReadyNodes, 1)
+		assert.Equal(t, nodeBID, result.NewReadyNodes[0].ID)
+	})
+
+	t.Run("State Only Condition - No Outcome Required", func(t *testing.T) {
+		nodeAID := uuid.New()
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		// Node B only requires Node A to be COMPLETED (no outcome check)
+		nodeB := model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeBID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateLocked,
+			DependsOn:     model.UUIDArray{nodeAID},
+			UnlockConfiguration: &model.UnlockConfig{
+				AnyOf: []model.UnlockGroup{
+					{
+						AllOf: []model.UnlockCondition{
+							{NodeTemplateID: nodeAID, NodeID: &nodeAID, State: strPtr("COMPLETED")},
+						},
+					},
+				},
+			},
+		}
+
+		// Complete without any outcome
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			return len(nodes) == 2
+		})).Return(nil).Once()
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
+		assert.NoError(t, err)
+		assert.Len(t, result.NewReadyNodes, 1, "node B should unlock when A is COMPLETED regardless of outcome")
+	})
+}
+
+func TestEndNodeWorkflowCompletion(t *testing.T) {
+	mockRepo := new(MockWorkflowNodeRepository)
+	sm := NewWorkflowNodeStateMachine(mockRepo)
+	ctx := context.Background()
+
+	t.Run("End Node Completed - Workflow Done", func(t *testing.T) {
+		endNodeID := uuid.New()
+		otherTemplateID := uuid.New()
+		nodeAID := endNodeID
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		// Node A is the end node and is being completed
+		nodeA := &model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: nodeAID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: uuid.New(),
+			State:                  model.WorkflowNodeStateInProgress,
+		}
+
+		// Node B is NOT the end node and is still locked
+		nodeB := model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: nodeBID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: otherTemplateID,
+			State:                  model.WorkflowNodeStateLocked,
+			DependsOn:              model.UUIDArray{},
+		}
+
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
+
+		completionConfig := &WorkflowCompletionConfig{
+			EndNodeID: &endNodeID,
+		}
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
+		assert.NoError(t, err)
+		assert.True(t, result.WorkflowFinished, "workflow should be complete when end node is completed")
+	})
+
+	t.Run("Non-End Node Completed - Workflow Not Done", func(t *testing.T) {
+		endNodeID := uuid.New()
+		otherTemplateID := uuid.New()
+		nodeAID := uuid.New()
+		nodeBID := endNodeID
+		consignmentID := uuid.New()
+
+		// Node A is NOT the end node, is being completed
+		nodeA := &model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: nodeAID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: otherTemplateID,
+			State:                  model.WorkflowNodeStateInProgress,
+		}
+
+		// Node B IS the end node, still locked
+		nodeB := model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: nodeBID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: uuid.New(),
+			State:                  model.WorkflowNodeStateLocked,
+			DependsOn:              model.UUIDArray{uuid.New()},
+		}
+
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
+
+		completionConfig := &WorkflowCompletionConfig{
+			EndNodeID: &endNodeID,
+		}
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
+		assert.NoError(t, err)
+		assert.False(t, result.WorkflowFinished, "workflow should not be complete when end node is still locked")
+	})
+
+	t.Run("End Node Unlocks And Auto-Completes", func(t *testing.T) {
+		endNodeID := uuid.New()
+		nodeAID := uuid.New()
+		consignmentID := uuid.New()
+
+		// Node A is completed, end node depends on it.
+		nodeA := &model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: nodeAID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: uuid.New(),
+			State:                  model.WorkflowNodeStateInProgress,
+		}
+
+		endNode := model.WorkflowNode{
+			BaseModel:              model.BaseModel{ID: endNodeID},
+			ConsignmentID:          &consignmentID,
+			WorkflowNodeTemplateID: uuid.New(),
+			State:                  model.WorkflowNodeStateLocked,
+			DependsOn:              model.UUIDArray{nodeAID},
+		}
+
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, endNode}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			if len(nodes) != 2 {
+				return false
+			}
+			var nodeACompleted bool
+			var endNodeCompleted bool
+			for _, node := range nodes {
+				switch node.ID {
+				case nodeAID:
+					nodeACompleted = node.State == model.WorkflowNodeStateCompleted
+				case endNodeID:
+					endNodeCompleted = node.State == model.WorkflowNodeStateCompleted
+				}
+			}
+			return nodeACompleted && endNodeCompleted
+		})).Return(nil).Once()
+
+		completionConfig := &WorkflowCompletionConfig{
+			EndNodeID: &endNodeID,
+		}
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
+		assert.NoError(t, err)
+		assert.True(t, result.WorkflowFinished, "workflow should be complete when end node auto-completes")
+		assert.Empty(t, result.NewReadyNodes, "end node should not remain READY after auto-completion")
+	})
+
+	t.Run("No EndNodeID - Falls Back To All Nodes", func(t *testing.T) {
+		nodeAID := uuid.New()
+		nodeBID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		nodeB := model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeBID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateLocked,
+			DependsOn:     model.UUIDArray{nodeAID},
+		}
+
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA, nodeB}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
+
+		// No completion config (nil) — should fall back to all-nodes-completed check
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq)
+		assert.NoError(t, err)
+		assert.False(t, result.WorkflowFinished, "workflow should not be complete when not all nodes are completed (legacy behavior)")
+	})
+
+	t.Run("Nil EndNodeID In Config - Falls Back To All Nodes", func(t *testing.T) {
+		nodeAID := uuid.New()
+		consignmentID := uuid.New()
+
+		nodeA := &model.WorkflowNode{
+			BaseModel:     model.BaseModel{ID: nodeAID},
+			ConsignmentID: &consignmentID,
+			State:         model.WorkflowNodeStateInProgress,
+		}
+
+		updateReq := &model.UpdateWorkflowNodeDTO{}
+
+		mockRepo.On("GetWorkflowNodesByConsignmentIDInTx", ctx, (*gorm.DB)(nil), consignmentID).Return([]model.WorkflowNode{*nodeA}, nil).Once()
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.AnythingOfType("[]model.WorkflowNode")).Return(nil).Once()
+
+		completionConfig := &WorkflowCompletionConfig{
+			EndNodeID: nil, // Explicitly nil
+		}
+
+		result, err := sm.TransitionToCompleted(ctx, nil, nodeA, updateReq, completionConfig)
+		assert.NoError(t, err)
+		assert.True(t, result.WorkflowFinished, "single node completed = all nodes completed (legacy behavior)")
+	})
+}
+
+func TestInitializeNodesWithUnlockConfiguration(t *testing.T) {
+	mockRepo := new(MockWorkflowNodeRepository)
+	sm := NewWorkflowNodeStateMachine(mockRepo)
+	ctx := context.Background()
+
+	t.Run("Resolve UnlockConfiguration From Template To Instance IDs", func(t *testing.T) {
+		template1ID := uuid.New()
+		template2ID := uuid.New()
+
+		templates := []model.WorkflowNodeTemplate{
+			{
+				BaseModel: model.BaseModel{ID: template1ID},
+			},
+			{
+				BaseModel: model.BaseModel{ID: template2ID},
+				DependsOn: model.UUIDArray{template1ID},
+				UnlockConfiguration: &model.UnlockConfig{
+					AnyOf: []model.UnlockGroup{
+						{
+							AllOf: []model.UnlockCondition{
+								{NodeTemplateID: template1ID, Outcome: strPtr("APPROVED")},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		parentRef := ParentRef{
+			ConsignmentID: &uuid.UUID{},
+		}
+
+		node1ID := uuid.New()
+		node2ID := uuid.New()
+
+		mockRepo.On("CreateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			return len(nodes) == 2
+		})).Return([]model.WorkflowNode{
+			{
+				BaseModel:              model.BaseModel{ID: node1ID},
+				WorkflowNodeTemplateID: template1ID,
+				State:                  model.WorkflowNodeStateLocked,
+			},
+			{
+				BaseModel:              model.BaseModel{ID: node2ID},
+				WorkflowNodeTemplateID: template2ID,
+				State:                  model.WorkflowNodeStateLocked,
+			},
+		}, nil).Once()
+
+		mockRepo.On("UpdateWorkflowNodesInTx", ctx, (*gorm.DB)(nil), mock.MatchedBy(func(nodes []model.WorkflowNode) bool {
+			// Both nodes should be updated
+			if len(nodes) != 2 {
+				return false
+			}
+			// Find the node with unlock config and verify resolution
+			for _, n := range nodes {
+				if n.WorkflowNodeTemplateID == template2ID {
+					if n.UnlockConfiguration == nil {
+						return false
+					}
+					condition := n.UnlockConfiguration.AnyOf[0].AllOf[0]
+					if condition.NodeTemplateID != template1ID {
+						return false
+					}
+					// The unlock config should have resolved node instance ID in NodeID
+					if condition.NodeID == nil || *condition.NodeID != node1ID {
+						return false
+					}
+				}
+			}
+			return true
+		})).Return(nil).Once()
+
+		createdNodes, newReadyNodes, _, err := sm.InitializeNodesFromTemplates(ctx, nil, parentRef, templates, nil)
+		assert.NoError(t, err)
+		assert.Len(t, createdNodes, 2)
+		assert.Len(t, newReadyNodes, 1)
+
+		// Node 1 (no deps) should be READY
+		assert.Equal(t, template1ID, newReadyNodes[0].WorkflowNodeTemplateID)
+
+		// Verify the node with unlock config was resolved
+		var node2 model.WorkflowNode
+		for _, n := range createdNodes {
+			if n.WorkflowNodeTemplateID == template2ID {
+				node2 = n
+				break
+			}
+		}
+		assert.NotNil(t, node2.UnlockConfiguration)
 	})
 }

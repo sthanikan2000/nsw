@@ -222,8 +222,8 @@ func (s *PreConsignmentService) initializePreConsignmentInTx(
 	}
 
 	// Create workflow nodes using the state machine
-	_, newReadyWorkflowNodes, err := s.stateMachine.InitializeNodesFromTemplates(
-		ctx, tx, ParentRef{PreConsignmentID: &preConsignment.ID}, nodeTemplates,
+	_, newReadyWorkflowNodes, _, err := s.stateMachine.InitializeNodesFromTemplates(
+		ctx, tx, ParentRef{PreConsignmentID: &preConsignment.ID}, nodeTemplates, []model.WorkflowTemplate{*workflowTemplate},
 	)
 	if err != nil {
 		tx.Rollback()
@@ -359,6 +359,10 @@ func (s *PreConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(c
 		}
 
 		if workflowNode.State != model.WorkflowNodeStateCompleted {
+			if workflowNode.PreConsignmentID == nil {
+				return nil, nil, fmt.Errorf("node %s is not associated with a pre-consignment", workflowNode.ID)
+			}
+
 			result, err := s.stateMachine.TransitionToCompleted(ctx, tx, workflowNode, updateReq)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to transition node to COMPLETED: %w", err)
@@ -367,7 +371,7 @@ func (s *PreConsignmentService) updateWorkflowNodeStateAndPropagateChangesInTx(c
 
 			// Mark pre-consignment as completed if all nodes are done
 			// This will sync the updated trader context to auth
-			if result.AllNodesCompleted {
+			if result.WorkflowFinished {
 				if err := s.markPreConsignmentAsCompleted(ctx, tx, *workflowNode.PreConsignmentID); err != nil {
 					return nil, nil, err
 				}
@@ -503,6 +507,7 @@ func (s *PreConsignmentService) buildPreConsignmentResponseDTO(preConsignment *m
 			},
 			State:         node.State,
 			ExtendedState: node.ExtendedState,
+			Outcome:       node.Outcome,
 			DependsOn:     node.DependsOn,
 		})
 	}
