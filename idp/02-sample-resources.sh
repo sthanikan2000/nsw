@@ -495,7 +495,11 @@ read -r -d '' TRADER_PORTAL_APP_PAYLOAD <<JSON || true
                         "user_attributes": [
                             "email",
                             "family_name",
-                            "given_name"
+                            "given_name",
+                            "ouHandle",
+                            "ouId",
+                            "ouName",
+                            "username"
                         ]
                     },
                     "id_token": {
