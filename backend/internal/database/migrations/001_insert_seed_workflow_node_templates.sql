@@ -1,0 +1,266 @@
+-- ============================================================================
+-- Migration: 001_insert_seed_workflow_node_templates.sql
+-- Purpose: Seed workflow node templates and unlock rules for execution flow.
+-- ============================================================================
+
+-- Seed data: workflow node template catalog
+INSERT INTO workflow_node_templates (id, name, description, type, config, depends_on, unlock_configuration)
+VALUES
+    -- General Information Node
+    (
+        'c0000003-0003-0003-0003-000000000001',
+        'General Information',
+        'General consignment information form',
+        'SIMPLE_FORM',
+        '{
+            "formId": "44444444-4444-4444-4444-444444444444"
+        }',
+        '[]',
+        NULL
+    ),
+
+    -- Customs Declaration Node
+    (
+        'c0000003-0003-0003-0003-000000000002',
+        'Customs Declaration',
+        'Export customs declaration form for trade goods',
+        'SIMPLE_FORM',
+        '{
+            "formId": "11111111-1111-1111-1111-111111111111",
+            "submission": {
+                "url": "https://7b0eb5f0-1ee3-4a0c-8946-82a893cb60c2.mock.pstmn.io/api/cusdec",
+                "response": {
+                    "display": {
+                        "formId": "71e5e73a-ebb2-4750-aaa4-f71087adac43"
+                    },
+                    "mapping": {
+                        "assesmentNo": "gi:cusdec:assesmentNo"
+                    }
+                }
+            }
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000001"
+        ]',
+        '{
+            "expression": {
+                "state": "COMPLETED",
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000001"
+            }
+        }'
+    ),
+
+    -- Phytosanitary Certificate Node
+    (
+        'c0000003-0003-0003-0003-000000000003',
+        'Phytosanitary Certificate',
+        'Phytosanitary certificate for plant products export',
+        'SIMPLE_FORM',
+        '{
+            "agency": "NPQS",
+            "formId": "22222222-2222-2222-2222-222222222222",
+            "service": "plant-quarantine-phytosanitary",
+            "callback": {
+                "response": {
+                    "display": {
+                        "formId": "d0c3b860-635b-4124-8081-d3f421e429cb"
+                    },
+                    "mapping": {
+                        "reviewedAt": "gi:phytosanitary:meta:reviewedAt",
+                        "reviewerNotes": "gi:phytosanitary:meta:reviewNotes"
+                    }
+                },
+                "transition": {
+                    "field": "decision",
+                    "default": "OGA_VERIFICATION_REJECTED",
+                    "mapping": {
+                        "APPROVED": "OGA_VERIFICATION_APPROVED",
+                        "MANUAL_REVIEW": "OGA_VERIFICATION_APPROVED"
+                    }
+                }
+            },
+            "emission": {
+                "rules": [
+                    {
+                        "outcome": "npqs:phytosanitary:high_risk_manual_review",
+                        "conditions": [
+                            {
+                                "field": "ogaResponse.decision",
+                                "value": "MANUAL_REVIEW"
+                            },
+                            {
+                                "field": "submissionResponse.riskLevel",
+                                "value": "HIGH"
+                            }
+                        ]
+                    },
+                    {
+                        "outcome": "npqs:phytosanitary:manual_review_required",
+                        "conditions": [
+                            {
+                                "field": "ogaResponse.decision",
+                                "value": "MANUAL_REVIEW"
+                            }
+                        ]
+                    },
+                    {
+                        "outcome": "npqs:phytosanitary:approved",
+                        "conditions": [
+                            {
+                                "field": "ogaResponse.decision",
+                                "value": "APPROVED"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "submission": {
+                "url": "http://localhost:8081/api/oga/inject",
+                "request": {
+                    "meta": {
+                        "type": "consignment",
+                        "verificationId": "moa:npqs:phytosanitary:001"
+                    }
+                }
+            }
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000002"
+        ]',
+        '{
+            "expression": {
+                "state": "COMPLETED",
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000002"
+            }
+        }'
+    ),
+
+    -- Health Certificate Node
+    (
+        'c0000003-0003-0003-0003-000000000004',
+        'Health Certificate',
+        'Health and safety certificate for food products',
+        'SIMPLE_FORM',
+        '{
+            "agency": "EDB",
+            "formId": "33333333-3333-3333-3333-333333333333",
+            "service": "food-control-administration-unit",
+            "callback": {
+                "response": {
+                    "display": {
+                        "formId": "95d7e7fe-5be0-43cb-ac71-94bc70d3a01d"
+                    }
+                }
+            },
+            "submission": {
+                "url": "http://localhost:8082/api/oga/inject"
+            }
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000002"
+        ]',
+        '{
+            "expression": {
+                "state": "COMPLETED",
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000002"
+            }
+        }'
+    ),
+
+    -- Manual Inspection Node (conditional based on phytosanitary certificate outcome)
+    (
+        'e1a00001-0001-4000-b000-000000000007',
+        'Manual Inspection',
+        'Manual inspection task for high-risk phytosanitary cases',
+        'SIMPLE_FORM',
+        '{
+            "agency": "NPQS",
+            "formId": "f1a00001-0001-4000-c000-000000000001",
+            "service": "plant-quarantine-phytosanitary",
+            "callback": {
+                "response": {
+                    "display": {
+                        "formId": "f1a00001-0001-4000-c000-000000000002"
+                    }
+                }
+            },
+            "submission": {
+                "url": "http://localhost:8081/api/oga/inject"
+            }
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000003"
+        ]',
+        '{
+            "expression": {
+                "allOf": [
+                    {
+                        "state": "COMPLETED",
+                        "nodeTemplateId": "c0000003-0003-0003-0003-000000000003"
+                    },
+                    {
+                        "outcome": "npqs:phytosanitary:manual_review_required",
+                        "nodeTemplateId": "c0000003-0003-0003-0003-000000000003"
+                    }
+                ]
+            }
+        }'
+    ),
+
+    -- Final Processing Node (unlocks when both certificates are completed, or if customs was fast-tracked)
+    (
+        'e1a00001-0001-4000-b000-000000000005',
+        'Final Processing',
+        'Final processing step — unlocks when both certificates are completed, or customs was fast-tracked',
+        'WAIT_FOR_EVENT',
+        '{
+            "event": "WAIT_FOR_EVENT",
+            "externalServiceUrl": "http://localhost:3001/api/process-task"
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000003",
+            "c0000003-0003-0003-0003-000000000004",
+            "e1a00001-0001-4000-b000-000000000007"
+        ]',
+        '{
+            "expression": {
+                "allOf": [
+                    {
+                        "anyOf": [
+                            {
+                                "allOf": [
+                                    {
+                                        "state": "COMPLETED",
+                                        "nodeTemplateId": "c0000003-0003-0003-0003-000000000003"
+                                    },
+                                    {
+                                        "outcome": "npqs:phytosanitary:approved",
+                                        "nodeTemplateId": "c0000003-0003-0003-0003-000000000003"
+                                    }
+                                ]
+                            },
+                            {
+                                "state": "COMPLETED",
+                                "nodeTemplateId": "e1a00001-0001-4000-b000-000000000007"
+                            }
+                        ]
+                    },
+                    {
+                        "state": "COMPLETED",
+                        "nodeTemplateId": "c0000003-0003-0003-0003-000000000004"
+                    }
+                ]
+            }
+        }'
+    ),
+
+    -- Placeholder End Node (to satisfy end_node_template_id requirement)
+    (
+        'e1a00001-0001-4000-b000-000000000006',
+        'End Node',
+        'Placeholder end node template to satisfy end_node_template_id requirement',
+        'END_NODE',
+        '{}',
+        '[]',
+        NULL
+    );

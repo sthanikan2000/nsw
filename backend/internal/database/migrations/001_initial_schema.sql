@@ -1,166 +1,402 @@
+-- ============================================================================
 -- Migration: 001_initial_schema.sql
--- Description: Create initial database schema for NSW workflow management system
--- Created: 2026-01-24
--- Updated: 2026-01-27
+-- Purpose: Create baseline schema objects, constraints, indexes, and metadata comments.
+-- Notes:
+--   - Uses IF NOT EXISTS to keep re-runs safe for table/index creation.
+--   - Establishes both consignment and pre-consignment workflow structures.
+-- ============================================================================
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================================
--- Table: hs_codes
--- Description: Harmonized System codes for classifying traded products
+-- Runtime task execution tables
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS hs_codes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hs_code VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT,
-    category TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS task_infos
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	type varchar(50) NOT NULL
+		CONSTRAINT task_infos_type_check
+			CHECK ((type)::text = ANY ((ARRAY['SIMPLE_FORM'::character varying, 'WAIT_FOR_EVENT'::character varying])::text[])),
+	state varchar(50) NOT NULL
+		CONSTRAINT task_infos_state_check
+			CHECK ((state)::text = ANY (ARRAY[('INITIALIZED'::character varying)::text, ('IN_PROGRESS'::character varying)::text, ('COMPLETED'::character varying)::text, ('FAILED'::character varying)::text])),
+	plugin_state varchar(100),
+	config jsonb,
+	local_state jsonb,
+	global_context jsonb,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL,
+	workflow_id uuid NOT NULL,
+	workflow_node_template_id uuid
 );
 
--- Index for faster lookups by code
-CREATE INDEX IF NOT EXISTS idx_hs_codes_hs_code ON hs_codes(hs_code);
+COMMENT ON TABLE task_infos IS 'Task executable information and state management for the ExecutionUnit Manager';
+
+COMMENT ON COLUMN task_infos.plugin_state IS 'Plugin-level state for business logic';
+
+COMMENT ON COLUMN task_infos.config IS 'JSONB configuration specific to the task type';
+
+COMMENT ON COLUMN task_infos.local_state IS 'JSONB local state for task execution';
+
+COMMENT ON COLUMN task_infos.global_context IS 'JSONB global context shared across task execution';
+
+COMMENT ON COLUMN task_infos.workflow_id IS 'Unified parent workflow ID - either a consignment_id or pre_consignment_id from the workflow_nodes';
+
+COMMENT ON COLUMN task_infos.workflow_node_template_id IS 'Reference to the workflow_node_template_id; identifies the type and configuration of this task';
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_status
+	ON task_infos (state);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_type
+	ON task_infos (type);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_command_set
+	ON task_infos USING gin (config);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_local_state
+	ON task_infos USING gin (local_state);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_global_context
+	ON task_infos USING gin (global_context);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_workflow_id
+	ON task_infos (workflow_id);
+
+CREATE INDEX IF NOT EXISTS idx_task_infos_workflow_node_template_id
+	ON task_infos (workflow_node_template_id);
 
 -- ============================================================================
--- Table: forms
--- Description: Dynamic form definitions (Schema + UI Schema)
+-- Dynamic form templates
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS forms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    schema JSONB NOT NULL,
-    ui_schema JSONB NOT NULL,
-    version VARCHAR(50) NOT NULL DEFAULT '1.0',
-    active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS forms
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	name varchar(255) NOT NULL,
+	description text,
+	schema jsonb NOT NULL,
+	ui_schema jsonb NOT NULL,
+	version varchar(50) DEFAULT '1.0'::character varying NOT NULL,
+	active boolean DEFAULT true NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
--- Index for active forms lookup
-CREATE INDEX IF NOT EXISTS idx_forms_active ON forms(active);
+COMMENT ON TABLE forms IS 'Form templates with JSON schemas and UI schemas';
+
+CREATE INDEX IF NOT EXISTS idx_forms_name
+	ON forms (name);
+
+CREATE INDEX IF NOT EXISTS idx_forms_active
+	ON forms (active);
 
 -- ============================================================================
--- Table: workflow_templates
--- Description: Templates defining workflow steps and configurations
+-- HS code reference data
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS workflow_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    version VARCHAR(50) NOT NULL,
-    steps JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS hs_codes
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	hs_code varchar(50) NOT NULL
+		UNIQUE,
+	description text NOT NULL,
+	category varchar(100),
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
--- Index for faster lookups by version
-CREATE INDEX IF NOT EXISTS idx_workflow_templates_version ON workflow_templates(version);
+COMMENT ON TABLE hs_codes IS 'Harmonized System codes for classifying trade products';
+
+CREATE INDEX IF NOT EXISTS idx_hs_codes_hs_code
+	ON hs_codes (hs_code);
 
 -- ============================================================================
--- Table: workflow_template_maps
--- Description: Mapping between (HS code, Trade flow) and workflow templates
+-- Workflow template definitions
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS workflow_template_maps (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hs_code_id UUID NOT NULL,
-    trade_flow VARCHAR(50) NOT NULL,
-    workflow_template_id UUID NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    -- Foreign key constraints
-    CONSTRAINT fk_workflow_template_maps_hs_code
-        FOREIGN KEY (hs_code_id)
-        REFERENCES hs_codes(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_workflow_template_maps_workflow_template
-        FOREIGN KEY (workflow_template_id)
-        REFERENCES workflow_templates(id)
-        ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS workflow_node_templates
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	name varchar(255) NOT NULL,
+	description text,
+	type varchar(50) NOT NULL,
+	config jsonb NOT NULL,
+	depends_on jsonb DEFAULT '[]'::jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL,
+	unlock_configuration jsonb
 );
 
--- Indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_hs_code_id ON workflow_template_maps(hs_code_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_trade_flow ON workflow_template_maps(trade_flow);
-CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_workflow_template_id ON workflow_template_maps(workflow_template_id);
+COMMENT ON TABLE workflow_node_templates IS 'Templates for workflow nodes with type, configuration, and dependencies';
 
--- Unique constraint to prevent duplicate mappings
+COMMENT ON COLUMN workflow_node_templates.name IS 'Human-readable name of the workflow node template';
+
+COMMENT ON COLUMN workflow_node_templates.description IS 'Optional description of the workflow node template';
+
+COMMENT ON COLUMN workflow_node_templates.type IS 'Type of the workflow node (e.g., SIMPLE_FORM, WAIT_FOR_EVENT)';
+
+COMMENT ON COLUMN workflow_node_templates.config IS 'JSONB configuration specific to the workflow node type';
+
+COMMENT ON COLUMN workflow_node_templates.depends_on IS 'JSONB array of workflow node template IDs this node depends on';
+
+CREATE TABLE IF NOT EXISTS workflow_templates
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	name varchar(100) NOT NULL,
+	description text,
+	version varchar(50) NOT NULL,
+	nodes jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL,
+	end_node_template_id uuid
+		CONSTRAINT fk_workflow_templates_end_node_template
+			references workflow_node_templates
+				ON UPDATE CASCADE ON DELETE SET NULL
+);
+
+COMMENT ON TABLE workflow_templates IS 'Workflow templates defining the structure with name, description, version, and node references';
+
+COMMENT ON COLUMN workflow_templates.nodes IS 'JSONB array of workflow node template IDs';
+
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_version
+	ON workflow_templates (version);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_name
+	ON workflow_templates (name);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_nodes
+	ON workflow_templates USING gin (nodes);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_node_templates_name
+	ON workflow_node_templates (name);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_node_templates_type
+	ON workflow_node_templates (type);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_node_templates_config
+	ON workflow_node_templates USING gin (config);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_node_templates_depends_on
+	ON workflow_node_templates USING gin (depends_on);
+
+-- ============================================================================
+-- Workflow mapping rules by HS code and flow
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS workflow_template_maps
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	hs_code_id uuid NOT NULL
+		CONSTRAINT fk_workflow_template_maps_hs_code
+			references hs_codes
+				ON UPDATE CASCADE ON DELETE RESTRICT,
+	consignment_flow varchar(50) NOT NULL
+		CONSTRAINT workflow_template_maps_consignment_flow_check
+			CHECK ((consignment_flow)::text = ANY ((ARRAY['IMPORT'::character varying, 'EXPORT'::character varying])::text[])),
+	workflow_template_id uuid NOT NULL
+		CONSTRAINT fk_workflow_template_maps_workflow_template
+			references workflow_templates
+				ON UPDATE CASCADE ON DELETE RESTRICT,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workflow_template_maps IS 'Mapping between HS codes, consignment flow, and workflow templates';
+
+CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_hs_code_id
+	ON workflow_template_maps (hs_code_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_consignment_flow
+	ON workflow_template_maps (consignment_flow);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_template_maps_workflow_template_id
+	ON workflow_template_maps (workflow_template_id);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_template_maps_unique
-    ON workflow_template_maps(hs_code_id, trade_flow);
+	ON workflow_template_maps (hs_code_id, consignment_flow);
 
 -- ============================================================================
--- Table: consignments
--- Description: Consignment records for import/export workflows
+-- Consignment workflow instances
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS consignments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    trade_flow VARCHAR(20) NOT NULL CHECK (trade_flow IN ('IMPORT', 'EXPORT')),
-    items JSONB NOT NULL,
-    trader_id VARCHAR(255) NOT NULL,
-    state VARCHAR(20) NOT NULL CHECK (state IN ('IN_PROGRESS', 'REQUIRES_REWORK', 'FINISHED')),
-    global_context JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS consignments
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	flow varchar(50) NOT NULL
+		CONSTRAINT consignments_flow_check
+			CHECK ((flow)::text = ANY ((ARRAY['IMPORT'::character varying, 'EXPORT'::character varying])::text[])),
+	trader_id varchar(100) NOT NULL,
+	state varchar(50) NOT NULL
+		CONSTRAINT consignments_state_check
+			CHECK ((state)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'FINISHED'::character varying])::text[])),
+	items jsonb NOT NULL,
+	global_context jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL,
+	end_node_id uuid
 );
 
--- Indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_consignments_trader_id ON consignments(trader_id);
-CREATE INDEX IF NOT EXISTS idx_consignments_state ON consignments(state);
-CREATE INDEX IF NOT EXISTS idx_consignments_trade_flow ON consignments(trade_flow);
-CREATE INDEX IF NOT EXISTS idx_consignments_created_at ON consignments(created_at DESC);
-
--- GIN index for JSONB items column for faster JSON queries
-CREATE INDEX IF NOT EXISTS idx_consignments_items ON consignments USING GIN (items);
-
--- ============================================================================
--- Table: tasks
--- Description: Individual task instances within consignment workflows
--- ============================================================================
-CREATE TABLE IF NOT EXISTS tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    consignment_id UUID NOT NULL,
-    step_id VARCHAR(100) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('SIMPLE_FORM', 'WAIT_FOR_EVENT')),
-    status VARCHAR(20) NOT NULL CHECK (status IN ('LOCKED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'REJECTED')),
-    config JSONB NOT NULL,
-    depends_on JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    -- Foreign key constraint
-    CONSTRAINT fk_tasks_consignment
-        FOREIGN KEY (consignment_id)
-        REFERENCES consignments(id)
-        ON DELETE CASCADE
-);
-
--- Indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_tasks_consignment_id ON tasks(consignment_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_step_id ON tasks(step_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type);
-
--- GIN indexes for JSONB columns for faster JSON queries
-CREATE INDEX IF NOT EXISTS idx_tasks_config ON tasks USING GIN (config);
-CREATE INDEX IF NOT EXISTS idx_tasks_depends_on ON tasks USING GIN (depends_on);
-
--- Composite index for common query patterns
-CREATE INDEX IF NOT EXISTS idx_tasks_consignment_status ON tasks(consignment_id, status);
-
--- ============================================================================
--- Comments for documentation
--- ============================================================================
-COMMENT ON TABLE hs_codes IS 'Harmonized System codes for classifying traded products';
-COMMENT ON TABLE workflow_templates IS 'Workflow templates defining steps and configurations';
-COMMENT ON TABLE workflow_template_maps IS 'Mapping between HS codes, consignment types, and workflow templates';
 COMMENT ON TABLE consignments IS 'Consignment records for import/export workflows';
-COMMENT ON TABLE tasks IS 'Individual task instances within consignment workflows';
 
-COMMENT ON COLUMN consignments.items IS 'JSONB array of items in the consignment, each with hsCode, workflowTemplateId, and tasks';
-COMMENT ON COLUMN consignments.state IS 'Current state: IN_PROGRESS, REQUIRES_REWORK, or FINISHED';
-COMMENT ON COLUMN tasks.depends_on IS 'JSONB map of stepID to completion status (INCOMPLETE or COMPLETED)';
-COMMENT ON COLUMN tasks.config IS 'JSONB configuration specific to the task type';
+CREATE INDEX IF NOT EXISTS idx_consignments_trader_id
+	ON consignments (trader_id);
+
+CREATE INDEX IF NOT EXISTS idx_consignments_state
+	ON consignments (state);
+
+CREATE INDEX IF NOT EXISTS idx_consignments_flow
+	ON consignments (flow);
+
+CREATE INDEX IF NOT EXISTS idx_consignments_created_at
+	ON consignments (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_consignments_items
+	ON consignments USING gin (items);
+
+CREATE INDEX IF NOT EXISTS idx_consignments_global_context
+	ON consignments USING gin (global_context);
 
 -- ============================================================================
--- Migration complete
+-- Pre-consignment template definitions
 -- ============================================================================
+CREATE TABLE IF NOT EXISTS pre_consignment_templates
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	name varchar(255) NOT NULL,
+	description text,
+	workflow_template_id uuid NOT NULL
+		CONSTRAINT fk_pre_consignment_templates_workflow_template
+			references workflow_templates
+				ON UPDATE CASCADE ON DELETE RESTRICT,
+	depends_on jsonb DEFAULT '[]'::jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE pre_consignment_templates IS 'Templates defining pre-consignment workflows that traders complete before creating consignments';
+
+COMMENT ON COLUMN pre_consignment_templates.depends_on IS 'JSONB array of pre-consignment template IDs that must be completed before this template can be initiated';
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignment_templates_name
+	ON pre_consignment_templates (name);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignment_templates_workflow_template_id
+	ON pre_consignment_templates (workflow_template_id);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignment_templates_depends_on
+	ON pre_consignment_templates USING gin (depends_on);
+
+-- ============================================================================
+-- Pre-consignment workflow instances
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS pre_consignments
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	trader_id varchar(255) NOT NULL,
+	pre_consignment_template_id uuid NOT NULL
+		CONSTRAINT fk_pre_consignments_template
+			references pre_consignment_templates
+				ON UPDATE CASCADE ON DELETE RESTRICT,
+	state varchar(50) NOT NULL
+		CONSTRAINT pre_consignments_state_check
+			CHECK ((state)::text = ANY ((ARRAY['LOCKED'::character varying, 'READY'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying])::text[])),
+	trader_context jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE pre_consignments IS 'Pre-consignment workflow instances created by traders';
+
+COMMENT ON COLUMN pre_consignments.trader_id IS 'Identifier for the trader who owns this pre-consignment';
+
+COMMENT ON COLUMN pre_consignments.trader_context IS 'JSONB context specific to the trader, accumulated during workflow execution';
+
+-- ============================================================================
+-- Workflow node instances
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS workflow_nodes
+(
+	id uuid DEFAULT gen_random_uuid() NOT NULL
+		PRIMARY KEY,
+	consignment_id uuid
+		CONSTRAINT fk_workflow_nodes_consignment
+			references consignments
+				ON UPDATE CASCADE ON DELETE CASCADE,
+	workflow_node_template_id uuid NOT NULL
+		CONSTRAINT fk_workflow_nodes_workflow_node_template
+			references workflow_node_templates
+				ON UPDATE CASCADE ON DELETE RESTRICT,
+	state varchar(50) NOT NULL
+		CONSTRAINT workflow_nodes_state_check
+			CHECK ((state)::text = ANY ((ARRAY['LOCKED'::character varying, 'READY'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying])::text[])),
+	extended_state text,
+	depends_on jsonb DEFAULT '[]'::jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT now() NOT NULL,
+	updated_at timestamp with time zone DEFAULT now() NOT NULL,
+	pre_consignment_id uuid
+		CONSTRAINT fk_workflow_nodes_pre_consignment
+			references pre_consignments
+				ON UPDATE CASCADE ON DELETE CASCADE,
+	outcome varchar(100),
+	unlock_configuration jsonb,
+	CONSTRAINT chk_workflow_nodes_parent_exclusive
+		CHECK (((consignment_id IS NOT NULL) AND (pre_consignment_id IS NULL)) OR ((consignment_id IS NULL) AND (pre_consignment_id IS NOT NULL)))
+);
+
+COMMENT ON TABLE workflow_nodes IS 'Individual workflow node instances within consignments';
+
+COMMENT ON COLUMN workflow_nodes.pre_consignment_id IS 'Reference to the pre-consignment this node belongs to (mutually exclusive with consignment_id)';
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_consignment_id
+	ON workflow_nodes (consignment_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_workflow_node_template_id
+	ON workflow_nodes (workflow_node_template_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_state
+	ON workflow_nodes (state);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_consignment_state
+	ON workflow_nodes (consignment_id, state);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_depends_on
+	ON workflow_nodes USING gin (depends_on);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_pre_consignment_id
+	ON workflow_nodes (pre_consignment_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_nodes_pre_consignment_state
+	ON workflow_nodes (pre_consignment_id, state);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignments_trader_id
+	ON pre_consignments (trader_id);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignments_template_id
+	ON pre_consignments (pre_consignment_template_id);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignments_state
+	ON pre_consignments (state);
+
+CREATE INDEX IF NOT EXISTS idx_pre_consignments_trader_id_state
+	ON pre_consignments (trader_id, state);
+
+-- ============================================================================
+-- Trader context registry
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS trader_contexts
+(
+	trader_id varchar(100) NOT NULL
+		PRIMARY KEY,
+	trader_context jsonb NOT NULL,
+	created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+	updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE trader_contexts IS 'Stores trader context information including metadata in JSON format. This table is used for trader identification and authorization.';
+
+COMMENT ON COLUMN trader_contexts.trader_id IS 'Unique trader identifier (e.g., TRADER-001)';
+
+COMMENT ON COLUMN trader_contexts.trader_context IS 'JSONB field containing trader metadata and context information';
+
