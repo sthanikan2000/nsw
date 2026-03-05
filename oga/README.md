@@ -63,6 +63,42 @@ go build -o bin/oga ./cmd/server
 ./bin/oga
 ```
 
+### Run with Docker
+
+```bash
+cd oga
+
+# Prepare environment
+cp .env.example .env
+
+# Build image
+docker build -t nsw-oga .
+
+# Run one OGA instance
+docker run --rm --name nsw-oga-1 \
+       --env-file .env \
+       -p 8081:8081 \
+       nsw-oga
+```
+
+Run multiple agency instances with separate env files:
+
+```bash
+# npqs.env: OGA_PORT=8081, OGA_DB_PATH=/data/npqs.db
+docker run --rm --name nsw-oga-npqs \
+       --env-file npqs.env \
+       -v $(pwd)/data:/data \
+       -p 8081:8081 \
+       nsw-oga
+
+# fcau.env: OGA_PORT=8082, OGA_DB_PATH=/data/fcau.db
+docker run --rm --name nsw-oga-fcau \
+       --env-file fcau.env \
+       -v $(pwd)/data:/data \
+       -p 8082:8082 \
+       nsw-oga
+```
+
 ### Running Multiple Agency Instances
 
 Each agency should run as a separate instance:

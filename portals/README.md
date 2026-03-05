@@ -29,6 +29,45 @@ See **[SETUP_WORKSPACE.md](docs/SETUP_WORKSPACE.md)** for:
 - Troubleshooting common issues
 - Verification checklist
 
+## Docker Usage
+
+Both portal apps use Dockerfiles under `apps/*`, but they must be built from the `portals/` root (workspace context).
+
+### Trader App (`nsw-trader-app`)
+
+```bash
+cd portals
+
+docker build \
+  -f apps/trader-app/Dockerfile \
+  -t nsw-trader-app \
+  --build-arg VITE_API_BASE_URL=http://localhost:8080/api \
+  --build-arg VITE_IDP_BASE_URL=https://localhost:8090 \
+  --build-arg VITE_IDP_CLIENT_ID=TRADER_PORTAL_APP \
+  --build-arg VITE_APP_URL=http://localhost:5173 \
+  .
+
+docker run --rm --name nsw-trader-app -p 5173:80 nsw-trader-app
+```
+
+### OGA App (`nsw-oga-app`)
+
+```bash
+cd portals
+
+docker build \
+  -f apps/oga-app/Dockerfile \
+  -t nsw-oga-app \
+  --build-arg VITE_PORT=5174 \
+  --build-arg VITE_INSTANCE_CONFIG=npqs \
+  --build-arg VITE_OGA_API_BASE_URL=http://localhost:8081 \
+  .
+
+docker run --rm --name nsw-oga-app -p 5174:80 nsw-oga-app
+```
+
+Use `.env.example` in each app directory as the source for build-time values.
+
 ---
 
 ## Project Structure

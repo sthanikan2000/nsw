@@ -10,14 +10,17 @@ WORKDIR /app
 
 # Copy dependency definitions first to leverage Docker cache
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+	go mod download
 
 # Copy the rest of the source code
 COPY . .
 
 # Build the binary using the Makefile 'build-linux' target
 # This ensures consistency with local builds
-RUN make build-linux
+RUN --mount=type=cache,target=/go/pkg/mod \
+	--mount=type=cache,target=/root/.cache/go-build \
+	make build-linux
 
 # ==============================================================================
 # Runtime Stage
@@ -29,7 +32,10 @@ WORKDIR /app
 
 # Copy the binary from the builder stage
 # The 'linux' target outputs to bin/server-linux
-COPY --from=builder /app/bin/server-linux /app/server
+COPY --from=builder --chown=nonroot:nonroot /app/bin/server-linux /app/server
+COPY --from=builder --chown=nonroot:nonroot /app/bucket /app/bucket
+
+USER nonroot:nonroot
 
 # Expose the application port
 EXPOSE 8080

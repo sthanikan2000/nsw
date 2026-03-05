@@ -65,6 +65,26 @@ go run ./cmd/server/main.go
 
 The server will start on the port specified in `SERVER_PORT` (default: 8080).
 
+### 5. Run with Docker (`nsw-backend`)
+
+```bash
+cd backend
+
+# Prepare environment
+cp .env.example .env
+
+# Build image
+docker build -t nsw-backend .
+
+# Run container
+docker run --rm --name nsw-backend \
+	--env-file .env \
+	-p 8080:8080 \
+	nsw-backend
+```
+
+If PostgreSQL is running on your host machine, set `DB_HOST=host.docker.internal` in `.env` before starting the container.
+
 ## Project Structure
 
 ```
