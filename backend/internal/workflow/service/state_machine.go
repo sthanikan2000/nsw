@@ -437,8 +437,10 @@ func (sm *WorkflowNodeStateMachine) canTransitionToFailed(currentState model.Wor
 // canTransitionToInProgress checks if a node can transition to IN_PROGRESS from its current state.
 func (sm *WorkflowNodeStateMachine) canTransitionToInProgress(currentState model.WorkflowNodeState) bool {
 	// Only READY or FAILED nodes can be moved to IN_PROGRESS
+	// And if already IN_PROGRESS also we allow transition to update extended state without error
 	return currentState == model.WorkflowNodeStateReady ||
-		currentState == model.WorkflowNodeStateFailed
+		currentState == model.WorkflowNodeStateFailed ||
+		currentState == model.WorkflowNodeStateInProgress
 }
 
 // sortNodesByID sorts workflow nodes by ID to ensure consistent ordering and prevent deadlocks.
