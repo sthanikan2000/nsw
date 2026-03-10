@@ -126,7 +126,21 @@ Supported deployment modes:
 Related docs:
 
 - Image-level run commands: [docs/CONTAINER_IMAGES.md](docs/CONTAINER_IMAGES.md)
+- Release and publish guide: [docs/RELEASE_IMAGES.md](docs/RELEASE_IMAGES.md)
 - Full deployment guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+### Docker Validation in CI
+
+Pull requests to `main` run Docker image validation through `.github/workflows/docker-validation.yml`.
+
+- This workflow validates builds for all deployable Docker targets in this repository:
+  - `backend/Dockerfile`
+  - `oga/Dockerfile`
+  - `portals/apps/trader-app/Dockerfile`
+  - `portals/apps/oga-app/Dockerfile`
+- It runs only when relevant Docker build contexts change (`backend/**`, `oga/**`, `portals/**`) or when the workflow file changes.
+- It validates builds only and does **not** push/publish images.
+- Image publishing belongs to release CD workflows and is intentionally out of scope for this CI workflow.
 
 ## Contributing
 
