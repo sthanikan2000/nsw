@@ -26,6 +26,24 @@ docker build -f portals/apps/trader-app/Dockerfile -t nsw-trader-portal:local po
 docker build -f portals/apps/oga-app/Dockerfile -t nsw-oga-portal:local portals
 ```
 
+## CI Docker Validation
+
+Pull requests to `main` validate Docker builds using `.github/workflows/docker-validation.yml`.
+
+- Validated Docker targets:
+  - `backend/Dockerfile` (context: `backend/`)
+  - `oga/Dockerfile` (context: `oga/`)
+  - `portals/apps/trader-app/Dockerfile` (context: `portals/`)
+  - `portals/apps/oga-app/Dockerfile` (context: `portals/`)
+- Trigger behavior:
+  - Runs when changes are in `backend/**`, `oga/**`, `portals/**`, or the workflow file itself.
+  - Builds execute only for matrix entries whose context changed.
+  - Any Docker build failure fails the workflow.
+- Scope boundary:
+  - This workflow validates image builds only.
+  - It does not push/publish images.
+  - Publishing belongs to release CD workflows.
+
 ## 3) Runtime Configuration Model
 
 - Backend and OGA backends use container environment variables directly.
