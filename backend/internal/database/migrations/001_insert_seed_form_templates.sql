@@ -370,11 +370,11 @@ VALUES
         TRUE
     ),
 
-    -- OGA Form Review
+    -- OGA Form (Health Certificate) Review
     (
         '95d7e7fe-5be0-43cb-ac71-94bc70d3a01d',
-        'OGA Form Review',
-        'Form to render review information of phytosanitary certificate',
+        'OGA Form Review (health certificate)',
+        'Form to render review information of health certificate',
         '{
             "type": "object",
             "required": [
@@ -385,8 +385,7 @@ VALUES
                 "decision": {
                     "enum": [
                         "APPROVED",
-                        "REJECTED",
-                        "NEEDS_MORE_INFO"
+                        "REJECTED"
                     ],
                     "type": "string"
                 },
@@ -494,10 +493,10 @@ VALUES
         TRUE
     ),
 
-    -- OGA Review View
+    -- OGA Review (Phytosanitary Certificate) View
     (
         'd0c3b860-635b-4124-8081-d3f421e429cb',
-        'OGA Review View',
+        'OGA Review View (phytosanitary certificate)',
         'Form to display the OGA review response.',
         '{
             "type": "object",
@@ -573,6 +572,89 @@ VALUES
                     "options": {
                         "multi": true
                     }
+                }
+            ]
+        }',
+        '1.0',
+        TRUE
+    ),
+
+    -- Manual Inspection Form ---
+    (
+        'f1a00001-0001-4000-c000-000000000001',
+        'Manual Inspection Form (Phytosanitary)',
+        'Form for manual inspection tasks when phytosanitary certificate requires manual review',
+        '{
+            "type": "object",
+            "properties": {
+                "inspectionDate": {
+                    "type": "string",
+                    "format": "date",
+                    "title": "Inspection Date"
+                }
+            }
+        }',
+        '{
+            "type": "VerticalLayout",
+            "elements": [
+                {
+                    "type": "Control",
+                    "scope": "#/properties/inspectionDate"
+                }
+            ]
+        }',
+        '1.0',
+        TRUE
+    ),
+
+    -- OGA Review (Manual Inspection) View
+    (
+        'f1a00001-0001-4000-c000-000000000002',
+        'OGA Review (Manual Inspection) View',
+        'Form to display OGA review response for manual inspection outcome.',
+        '{
+            "type": "object",
+            "required": [
+                "decision",
+                "reviewedAt"
+            ],
+            "properties": {
+                "decision": {
+                    "enum": [
+                        "APPROVED",
+                        "REJECTED"
+                    ],
+                    "type": "string"
+                },
+                "reviewedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "reviewerNotes": {
+                    "type": "string"
+                }
+            }
+        }',
+        '{
+            "type": "VerticalLayout",
+            "elements": [
+                {
+                    "type": "Control",
+                    "scope": "#/properties/decision",
+                    "options": {
+                        "format": "radio"
+                    }
+                },
+                {
+                    "type": "Control",
+                    "scope": "#/properties/reviewerNotes",
+                    "options": {
+                        "multi": true
+                    }
+                },
+                {
+                    "type": "Control",
+                    "scope": "#/properties/reviewedAt"
                 }
             ]
         }',
