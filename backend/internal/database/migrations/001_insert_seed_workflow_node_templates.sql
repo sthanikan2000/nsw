@@ -50,6 +50,29 @@ VALUES
         }'
     ),
 
+    -- Payment Node
+    (
+        'c0000003-0003-0003-0003-000000000008',
+        'Payment',
+        'Base payment step before customs declaration',
+        'PAYMENT',
+        '{
+            "amount": 100,
+            "currency": "USD",
+            "gateway": "https://example.com/payment",
+            "ttl": 300
+        }',
+        '[
+            "c0000003-0003-0003-0003-000000000002"
+        ]',
+        '{
+            "expression": {
+                "state": "COMPLETED",
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000002"
+            }
+        }'
+    ),
+
     -- Phytosanitary Certificate Node
     (
         'c0000003-0003-0003-0003-000000000003',
@@ -125,12 +148,12 @@ VALUES
             }
         }')::jsonb,
         '[
-            "c0000003-0003-0003-0003-000000000002"
+            "c0000003-0003-0003-0003-000000000008"
         ]',
         '{
             "expression": {
                 "state": "COMPLETED",
-                "nodeTemplateId": "c0000003-0003-0003-0003-000000000002"
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000008"
             }
         }'
     ),
@@ -157,12 +180,12 @@ VALUES
             }
         }')::jsonb,
         '[
-            "c0000003-0003-0003-0003-000000000002"
+            "c0000003-0003-0003-0003-000000000008"
         ]',
         '{
             "expression": {
                 "state": "COMPLETED",
-                "nodeTemplateId": "c0000003-0003-0003-0003-000000000002"
+                "nodeTemplateId": "c0000003-0003-0003-0003-000000000008"
             }
         }'
     ),
