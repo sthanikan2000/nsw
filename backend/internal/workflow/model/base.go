@@ -18,7 +18,7 @@ type BaseModel struct {
 func (base *BaseModel) BeforeCreate(tx *gorm.DB) (err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
-		return
+		return err
 	}
 	base.ID = id.String()
 	base.CreatedAt = time.Now().UTC()

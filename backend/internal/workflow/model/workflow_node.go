@@ -29,7 +29,7 @@ type WorkflowNodeTemplate struct {
 	Description         string                   `gorm:"type:text;column:description" json:"description"`                                             // Optional description of the workflow node template
 	Type                WorkflowNodeTemplateType `gorm:"type:varchar(50);column:type;not null" json:"type"`                                           // Type of the workflow node
 	Config              json.RawMessage          `gorm:"type:jsonb;column:config;not null;serializer:json" json:"config"`                             // Configuration specific to the workflow node type
-	DependsOn           StringArray                `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node template IDs this node depends on
+	DependsOn           StringArray              `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node template IDs this node depends on
 	UnlockConfiguration *UnlockConfig            `gorm:"type:jsonb;column:unlock_configuration;serializer:json" json:"unlockConfiguration,omitempty"` // Optional conditional unlock configuration (supports nested AND/OR boolean expressions). If nil, DependsOn uses AND-all logic.
 }
 
@@ -45,7 +45,7 @@ type WorkflowNode struct {
 	State                  WorkflowNodeState `gorm:"type:varchar(50);column:state;not null" json:"state"`                                         // State of the workflow node
 	ExtendedState          *string           `gorm:"type:text;column:extended_state" json:"extendedState"`                                        // Optional extended state information (e.g., error details)
 	Outcome                *string           `gorm:"type:varchar(100);column:outcome" json:"outcome,omitempty"`                                   // Outcome sub-state when COMPLETED (e.g., APPROVED, REJECTED)
-	DependsOn              StringArray         `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node IDs this node depends on
+	DependsOn              StringArray       `gorm:"type:jsonb;column:depends_on;not null;serializer:json" json:"depends_on"`                     // Array of workflow node IDs this node depends on
 	UnlockConfiguration    *UnlockConfig     `gorm:"type:jsonb;column:unlock_configuration;serializer:json" json:"unlockConfiguration,omitempty"` // Resolved instance-level unlock configuration
 
 	// Relationships
