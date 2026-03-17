@@ -91,24 +91,50 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	tmHandler := taskManager.NewHTTPHandler(tm)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/tasks", tmHandler.HandleExecuteTask)
-	mux.HandleFunc("GET /api/v1/tasks/{id}", tmHandler.HandleGetTask)
-	mux.HandleFunc("GET /api/v1/hscodes", hsCodeRouter.HandleGetAllHSCodes)
-	mux.HandleFunc("GET /api/v1/chas", chaRouter.HandleGetCHAs)
-	mux.HandleFunc("POST /api/v1/consignments", consignmentRouter.HandleCreateConsignment)
-	mux.HandleFunc("GET /api/v1/consignments/{id}", consignmentRouter.HandleGetConsignmentByID)
-	mux.HandleFunc("PUT /api/v1/consignments/{id}", consignmentRouter.HandleInitializeConsignment)
-	mux.HandleFunc("GET /api/v1/consignments", consignmentRouter.HandleGetConsignments)
-	mux.HandleFunc("POST /api/v1/pre-consignments", preConsignmentRouter.HandleCreatePreConsignment)
-	mux.HandleFunc("GET /api/v1/pre-consignments/{preConsignmentId}", preConsignmentRouter.HandleGetPreConsignmentByID)
-	mux.HandleFunc("GET /api/v1/pre-consignments", preConsignmentRouter.HandleGetTraderPreConsignments)
-	mux.HandleFunc("POST /api/v1/uploads", uploadHandler.Upload)
-	mux.HandleFunc("GET /api/v1/uploads/{key}/content", uploadHandler.DownloadContent)
-	mux.HandleFunc("GET /api/v1/uploads/{key}", uploadHandler.Download)
-	mux.HandleFunc("DELETE /api/v1/uploads/{key}", uploadHandler.Delete)
+	// 1. Initialize Protected Router
+	// We remove the /api/v1 prefix from these definitions because
+	// we will mount this entire mux under that prefix later.
+	protectedMux := http.NewServeMux()
+	protectedMux.HandleFunc("POST /tasks", tmHandler.HandleExecuteTask)
+	protectedMux.HandleFunc("GET /tasks/{id}", tmHandler.HandleGetTask)
+	protectedMux.HandleFunc("GET /hscodes", hsCodeRouter.HandleGetAllHSCodes)
+	protectedMux.HandleFunc("GET /chas", chaRouter.HandleGetCHAs)
+	protectedMux.HandleFunc("POST /consignments", consignmentRouter.HandleCreateConsignment)
+	protectedMux.HandleFunc("GET /consignments/{id}", consignmentRouter.HandleGetConsignmentByID)
+	protectedMux.HandleFunc("PUT /consignments/{id}", consignmentRouter.HandleInitializeConsignment)
+	protectedMux.HandleFunc("GET /consignments", consignmentRouter.HandleGetConsignments)
+	protectedMux.HandleFunc("POST /pre-consignments", preConsignmentRouter.HandleCreatePreConsignment)
+	protectedMux.HandleFunc("GET /pre-consignments/{preConsignmentId}", preConsignmentRouter.HandleGetPreConsignmentByID)
+	protectedMux.HandleFunc("GET /pre-consignments", preConsignmentRouter.HandleGetTraderPreConsignments)
+	protectedMux.HandleFunc("POST /uploads", uploadHandler.Upload)
+	protectedMux.HandleFunc("GET /uploads/{key}/content", uploadHandler.DownloadContent)
+	protectedMux.HandleFunc("GET /uploads/{key}", uploadHandler.Download)
+	protectedMux.HandleFunc("DELETE /uploads/{key}", uploadHandler.Delete)
 
-	handler := middleware.CORS(&cfg.CORS)(authManager.Middleware()(mux))
+	// 2. Initialize Main (Public) Router
+	mainMux := http.NewServeMux()
+
+	// Public Health Check
+	mainMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		if err := database.HealthCheck(db); err != nil {
+			http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if err := authManager.Health(); err != nil {
+			http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","service":"nsw-backend"}`))
+	})
+
+	// 3. Mount Protected Mux with Auth Middleware
+	// The trailing slash in "/api/v1/" acts as a prefix match
+	mainMux.Handle("/api/v1/", http.StripPrefix("/api/v1", authManager.Middleware()(protectedMux)))
+
+	// 4. Apply Global Middlewares (CORS)
+	handler := middleware.CORS(&cfg.CORS)(mainMux)
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler: handler,
