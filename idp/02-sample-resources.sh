@@ -64,7 +64,7 @@ get_group_id_by_name() {
         return
     fi
 
-    echo "$BODY" | sed 's/},{/}\n{/g' | grep "\"name\":\"${GROUP_NAME}\"" | grep "\"organizationUnitId\":\"${OU_ID}\"" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4
+    echo "$BODY" | sed 's/},{/}\n{/g' | grep "\"name\":\"${GROUP_NAME}\"" | grep "\"ouId\":\"${OU_ID}\"" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4
 }
 
 get_role_id_by_name() {
@@ -127,7 +127,7 @@ create_user_in_ou() {
         read -r -d '' USER_PAYLOAD <<JSON || true
 {
 "type": "${USER_TYPE}",
-"organizationUnit": "${OU_ID}",
+"ouId": "${OU_ID}",
 "attributes": {
     "username": "${USERNAME}",
     "password": "${PASSWORD}",
@@ -854,7 +854,7 @@ read -r -d '' TRADERS_GROUP_PAYLOAD <<JSON || true
 {
   "name": "Traders",
   "description": "Trader members group",
-  "organizationUnitId": "${ABCD_TRADERS_OU_ID}"
+  "ouId": "${ABCD_TRADERS_OU_ID}"
 }
 JSON
 
@@ -893,7 +893,7 @@ read -r -d '' CHA_GROUP_PAYLOAD <<JSON || true
 {
   "name": "CHA",
   "description": "CHA members group",
-  "organizationUnitId": "${ABCD_TRADERS_OU_ID}"
+  "ouId": "${ABCD_TRADERS_OU_ID}"
 }
 JSON
 
