@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	workflowManagerV2 "github.com/OpenNSW/go-temporal-workflow"
+
 	workflowmanagerV1 "github.com/OpenNSW/nsw/internal/workflow/manager"
 	"github.com/OpenNSW/nsw/internal/workflow/model"
 	wfutils "github.com/OpenNSW/nsw/internal/workflow/utils"
@@ -674,12 +675,12 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 			}
 		}
 		taskTemplates, err := s.templateProvider.GetWorkflowNodeTemplatesByIDs(ctx, taskTemplateIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve workflow node templates for consignment %s: %w", consignment.ID, err)
+		}
 		taskTemplateMap := make(map[string]model.WorkflowNodeTemplate)
 		for _, taskTemplate := range taskTemplates {
 			taskTemplateMap[taskTemplate.ID] = taskTemplate
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve workflow node templates for consignment %s: %w", consignment.ID, err)
 		}
 		nodeResponseDTOs = make([]model.WorkflowNodeResponseDTO, 0, len(workflowV2.NodeInfo))
 		for _, node := range workflowV2.NodeInfo {
@@ -688,12 +689,12 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 			if node.Type == workflowManagerV2.NodeTypeTask {
 				taskTemplate, ok := taskTemplateMap[node.TaskTemplateID]
 				if !ok {
-					slog.Error("failed to retrieve workflow node template for", "consignment_id", consignment.ID, "node_id", node.ID)
-				} else {
-					taskName = taskTemplate.Name
-					taskDescription = taskTemplate.Description
-					taskType = string(taskTemplate.Type)
+					slog.Error("failed to retrieve workflow node template for", "consignment_id", consignment.ID, "node_id", node.ID, "task_template_id", node.TaskTemplateID)
+					return nil, fmt.Errorf("failed to retrieve workflow node template %s for node %s", node.TaskTemplateID, node.ID)
 				}
+				taskName = taskTemplate.Name
+				taskDescription = taskTemplate.Description
+				taskType = string(taskTemplate.Type)
 			} else {
 				taskType = string(node.Type)
 			}
@@ -718,7 +719,7 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 					Type:        taskType,
 				},
 				State:     nodeState,
-				DependsOn: []string{},
+				DependsOn: []string{}, // TODO: should be removed or should be populated based on the workflow definition (not currently stored in DB for v2 workflows)
 			})
 		}
 	}

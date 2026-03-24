@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	workflowManagerV2 "github.com/OpenNSW/go-temporal-workflow"
+
 	"github.com/OpenNSW/nsw/internal/auth"
 	"github.com/OpenNSW/nsw/internal/config"
 	"github.com/OpenNSW/nsw/internal/database"
@@ -61,7 +62,7 @@ func setupWorkflowManagerV2(
 	// 1. Connect to the local Temporal Server (Needed for Workflow Manager V2)
 	c, err := client.Dial(client.Options{})
 	if err != nil {
-		return nil, fmt.Errorf("Error creating Temporal client: %v\n", err)
+		return nil, fmt.Errorf("error creating temporal client: %w", err)
 	}
 	// ***************
 	// Note: You may need to manage closing the client gracefully elsewhere
@@ -71,13 +72,12 @@ func setupWorkflowManagerV2(
 	activationHandler := func(payload workflowManagerV2.TaskPayload) error {
 		template, err := templateService.GetWorkflowNodeTemplateByID(ctx, payload.TaskTemplateID)
 		if err != nil {
-			return fmt.Errorf("Error getting workflow node template: %v\n", err)
+			return fmt.Errorf("error getting workflow node template: %w", err)
 		}
 
 		// TODO: We need to pass the TaskPayload.RunID in the future to avoid issues with
 		// task retries. For example, when retrying a task instance, a stale version might
 		// send a completion that will trigger the new version.
-		slog.Error("---- DEBUG ---- Starting InitTaskRequest", "TaskID", payload.NodeID, "WorkflowID", payload.RunID, "WorkflowNodeTemplateID", template.ID)
 		tmRequest := taskManager.InitTaskRequest{
 			TaskID:                 payload.NodeID,
 			WorkflowID:             payload.RunID,
@@ -88,13 +88,13 @@ func setupWorkflowManagerV2(
 		}
 		_, err = tm.InitTask(ctx, tmRequest)
 		if err != nil {
-			return fmt.Errorf("Error initializing task manager: %v\n", err)
+			return fmt.Errorf("error initializing task manager: %w", err)
 		}
 		return nil
 	}
 
 	completionHandler := func(workflowID string, finalContext map[string]any) error {
-		fmt.Printf("Workflow %s logically completed with final context!\n", workflowID)
+		slog.Info("Workflow logically completed", "workflowID", workflowID, "finalContext", finalContext)
 		return nil
 	}
 
@@ -108,14 +108,16 @@ func setupWorkflowManagerV2(
 		appendGlobalContext map[string]any) {
 		err := workflowManager.TaskDone(ctx, workflowID, "", taskID, appendGlobalContext)
 		if err != nil {
-			fmt.Printf("Error completing task: %v\n", err)
+			slog.Error("error completing task", "error", err)
 		}
 	}
 
 	tm.RegisterUpstreamDoneCallback(taskDoneWrapper)
 
 	// Start the workers.
-	workflowManager.StartWorker()
+	if err := workflowManager.StartWorker(); err != nil {
+		return nil, fmt.Errorf("failed to start workflow manager worker: %w", err)
+	}
 
 	return workflowManager, nil
 }

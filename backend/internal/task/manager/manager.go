@@ -222,8 +222,6 @@ func (tm *taskManager) InitTask(ctx context.Context, request InitTaskRequest) (*
 		return nil, fmt.Errorf("failed to marshal global context: %w", err)
 	}
 
-	slog.Error("---- DEBUG ---- About to create persistence.taskInfo", "activeTask.TaskID", activeTask.TaskID, "request.TaskID", request.TaskID, "request.WorkflowID", request.WorkflowID, "request.WorkflowNodeTemplateID", request.WorkflowNodeTemplateID, "request.Type", request.Type)
-
 	// Create a task execution record
 	taskInfo := &persistence.TaskInfo{
 		ID:                     activeTask.TaskID,
@@ -277,7 +275,7 @@ func (tm *taskManager) execute(ctx context.Context, activeTask *container.Contai
 			if *result.NewState == plugin.Completed || *result.NewState == plugin.Failed {
 				tm.notifyWorkflowDoneHandler(ctx, activeTask.WorkflowID, activeTask.TaskID, result.AppendGlobalContext)
 			} else {
-				// TODO: Add support for handling task updates for the new workflow manager.
+				tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.AppendGlobalContext, result.EmittedOutcome)
 			}
 		} else {
 			tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.AppendGlobalContext, result.EmittedOutcome)
