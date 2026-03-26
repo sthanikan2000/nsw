@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -141,13 +140,7 @@ func (s *ConsignmentService) InitializeConsignmentByID(
 			return nil, fmt.Errorf("no v2 workflow template found for HS code %s and flow %s", hsCodeIDs[0], consignment.Flow)
 		}
 
-		bytesWTV2, err := json.Marshal(wtV2)
-		if err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to marshal v2 workflow template: %w", err)
-		}
-
-		if err := s.workflowManagerV2.StartWorkflow(ctx, consignment.ID, bytesWTV2, globalContext); err != nil {
+		if err := s.workflowManagerV2.StartWorkflow(ctx, consignment.ID, wtV2.WorkflowDefinition, globalContext); err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("failed to register workflow: %w", err)
 		}
