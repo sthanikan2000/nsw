@@ -1,5 +1,7 @@
 package model
 
+import wmv2 "github.com/OpenNSW/go-temporal-workflow"
+
 type WorkflowTemplate struct {
 	BaseModel
 	Name              string      `gorm:"type:varchar(100);column:name;not null" json:"name"`                       // Name of the workflow template
@@ -15,4 +17,16 @@ func (wt *WorkflowTemplate) TableName() string {
 
 func (wt *WorkflowTemplate) GetNodeTemplateIDs() []string {
 	return wt.NodeTemplates
+}
+
+// WorkflowTemplateV2 represents the new workflow template structure with embedded workflow definition.
+type WorkflowTemplateV2 struct {
+	BaseModel
+	Name               string                  `gorm:"type:varchar(100);column:name;not null" json:"name"`      // Name of the workflow template
+	Version            string                  `gorm:"type:varchar(50);column:version;not null" json:"version"` // Version of the workflow template
+	WorkflowDefinition wmv2.WorkflowDefinition `gorm:"type:jsonb;column:workflow_definition;not null;serializer:json" json:"workflow_definition"`
+}
+
+func (wt *WorkflowTemplateV2) TableName() string {
+	return "workflow_template_v2"
 }
