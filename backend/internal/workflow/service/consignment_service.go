@@ -585,7 +585,6 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 	edgeResponseDTOs := make([]model.WorkflowEdgeResponseDTO, 0)
 
 	if workflowV1 != nil {
-		nodeResponseDTOs = make([]model.WorkflowNodeResponseDTO, 0, len(workflowV1.WorkflowNodes))
 		for _, node := range workflowV1.WorkflowNodes {
 			nodeResponseDTOs = append(nodeResponseDTOs, model.WorkflowNodeResponseDTO{
 				ID:        node.ID,
@@ -617,7 +616,6 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 		for _, taskTemplate := range taskTemplates {
 			taskTemplateMap[taskTemplate.ID] = taskTemplate
 		}
-		nodeResponseDTOs = make([]model.WorkflowNodeResponseDTO, 0, len(workflowV2.NodeInfo))
 		for _, node := range workflowV2.NodeInfo {
 			var taskName, taskDescription, taskType string
 			var nodeState model.WorkflowNodeState
@@ -657,9 +655,6 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 				DependsOn: []string{}, // TODO: should be removed or should be populated based on the workflow definition (not currently stored in DB for v2 workflows)
 			})
 		}
-	}
-
-	if workflowV2 != nil {
 		for _, edge := range workflowV2.Edges {
 			edgeResponseDTOs = append(edgeResponseDTOs, model.WorkflowEdgeResponseDTO{
 				ID:        edge.ID,
