@@ -662,18 +662,16 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 
 	edges := make([]model.EdgeResponseDTO, 0)
 
-	// until `go-temporal-workflow` is updated to include Edges in the WorkflowInstance struct,
-	// the following code will be in commented stage
-	// TODO: clean up once the go-temporal-workflow package is updated
-	// if workflowV2 != nil {
-	// 	for _, edge := range workflowV2.Edges {
-	// 		edges = append(edges, model.EdgeResponseDTO{
-	// 			SourceID:  edge.FromNodeID,
-	// 			TargetID:  edge.ToNodeID,
-	// 			Condition: edge.Condition,
-	// 		})
-	// 	}
-	// }
+	if workflowV2 != nil {
+		for _, edge := range workflowV2.Edges {
+			edges = append(edges, model.EdgeResponseDTO{
+				ID:        edge.ID,
+				SourceID:  edge.SourceID,
+				TargetID:  edge.TargetID,
+				Condition: &edge.Condition,
+			})
+		}
+	}
 
 	return &model.ConsignmentDetailDTO{
 		ID:            consignment.ID,
