@@ -127,7 +127,7 @@ func (s *ConsignmentService) InitializeConsignmentByID(
 		// Currently, assumes that there is only one HS code selected.
 		if len(hsCodeIDs) > 1 {
 			tx.Rollback()
-			return nil, fmt.Errorf("V2 currently supports only one HS code")
+			return nil, fmt.Errorf("v2 currently supports only one HS code")
 		}
 
 		wtV2, err := s.templateProvider.GetWorkflowTemplateByHSCodeIDAndFlowV2(ctx, hsCodeIDs[0], consignment.Flow)
@@ -574,7 +574,8 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 	consignment *model.Consignment,
 	workflowV1 *model.Workflow,
 	workflowV2 *workflowManagerV2.WorkflowInstance,
-	hsLoader *hsCodeBatchLoader) (*model.ConsignmentDetailDTO, error) {
+	hsLoader *hsCodeBatchLoader,
+) (*model.ConsignmentDetailDTO, error) {
 	itemResponseDTOs, err := s.buildConsignmentItemResponseDTOs(consignment.Items, hsLoader)
 	if err != nil {
 		return nil, err
@@ -659,6 +660,21 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 		nodeResponseDTOs = []model.WorkflowNodeResponseDTO{}
 	}
 
+	edges := make([]model.EdgeResponseDTO, 0)
+
+	// until `go-temporal-workflow` is updated to include Edges in the WorkflowInstance struct,
+	// the following code will be in commented stage
+	// TODO: clean up once the go-temporal-workflow package is updated
+	// if workflowV2 != nil {
+	// 	for _, edge := range workflowV2.Edges {
+	// 		edges = append(edges, model.EdgeResponseDTO{
+	// 			SourceID:  edge.FromNodeID,
+	// 			TargetID:  edge.ToNodeID,
+	// 			Condition: edge.Condition,
+	// 		})
+	// 	}
+	// }
+
 	return &model.ConsignmentDetailDTO{
 		ID:            consignment.ID,
 		Flow:          consignment.Flow,
@@ -669,6 +685,7 @@ func (s *ConsignmentService) buildConsignmentDetailDTO(
 		CreatedAt:     consignment.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     consignment.UpdatedAt.Format(time.RFC3339),
 		WorkflowNodes: nodeResponseDTOs,
+		Edges:         edges,
 	}, nil
 }
 
