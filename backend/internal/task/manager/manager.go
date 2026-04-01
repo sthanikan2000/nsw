@@ -42,7 +42,8 @@ type ExecuteTaskResponse struct {
 }
 
 // WorkflowUpdateHandler handles task update notifications for the workflow manager.
-type WorkflowUpdateHandler func(ctx context.Context, taskID string, state *plugin.State, extendedState *string, appendGlobalContext map[string]any, outcome *string)
+// TODO: `outcome` is only used for the old workflow manager, remove this after v1 workflow manager is fully deprecated.
+type WorkflowUpdateHandler func(ctx context.Context, taskID string, state *plugin.State, extendedState *string, outputs map[string]any, outcome *string)
 
 // WorkflowDoneHandler handles task completion notifications for the workflow manager.
 // TODO: these functions should return an error?
@@ -251,7 +252,7 @@ func (tm *taskManager) start(ctx context.Context, activeTask *container.Containe
 
 	// Notify the workflow manager of the initial state after starting the task (e.g., InProgress). This ensures that
 	//the workflow manager is aware of the task's state change immediately after initialization.
-	tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.AppendGlobalContext, result.EmittedOutcome)
+	tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.Outputs, result.EmittedOutcome)
 
 	return &InitTaskResponse{Success: true}, nil
 }
@@ -267,12 +268,12 @@ func (tm *taskManager) execute(ctx context.Context, activeTask *container.Contai
 	if result.NewState != nil {
 		if tm.useWorkflowManagerV2 {
 			if *result.NewState == plugin.Completed || *result.NewState == plugin.Failed {
-				tm.notifyWorkflowDoneHandler(ctx, activeTask.WorkflowID, activeTask.TaskID, result.AppendGlobalContext)
+				tm.notifyWorkflowDoneHandler(ctx, activeTask.WorkflowID, activeTask.TaskID, result.Outputs)
 			} else {
-				tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.AppendGlobalContext, result.EmittedOutcome)
+				tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.Outputs, result.EmittedOutcome)
 			}
 		} else {
-			tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.AppendGlobalContext, result.EmittedOutcome)
+			tm.notifyWorkflowUpdateHandler(ctx, activeTask.TaskID, result.NewState, result.ExtendedState, result.Outputs, result.EmittedOutcome)
 		}
 	}
 
@@ -358,23 +359,24 @@ func (tm *taskManager) getTask(ctx context.Context, taskID string) (*container.C
 }
 
 // notifyWorkflowUpdateHandler sends state updates to Workflow Manager via the registered handler.
-func (tm *taskManager) notifyWorkflowUpdateHandler(ctx context.Context, taskID string, state *plugin.State, extendedState *string, appendGlobalContext map[string]any, outcome *string) {
+// TODO: `outcome` is only used for the old workflow manager, remove this after v1 workflow manager is fully deprecated.
+func (tm *taskManager) notifyWorkflowUpdateHandler(ctx context.Context, taskID string, state *plugin.State, extendedState *string, outputs map[string]any, outcome *string) {
 	if tm.workflowUpdateHandler == nil {
 		slog.WarnContext(ctx, "workflow manager callback not configured, skipping notification",
 			"taskID", taskID,
 			"state", state,
 			"extendedState", extendedState,
-			"appendGlobalContext", appendGlobalContext,
+			"outputs", outputs,
 		)
 		return
 	}
 
-	tm.workflowUpdateHandler(ctx, taskID, state, extendedState, appendGlobalContext, outcome)
+	tm.workflowUpdateHandler(ctx, taskID, state, extendedState, outputs, outcome)
 	slog.DebugContext(ctx, "task completion notification sent via callback",
 		"taskID", taskID,
 		"state", state,
 		"extendedState", extendedState,
-		"appendGlobalContext", appendGlobalContext,
+		"outputs", outputs,
 	)
 }
 
@@ -382,18 +384,19 @@ func (tm *taskManager) notifyWorkflowDoneHandler(
 	ctx context.Context,
 	workflowID string,
 	taskID string,
-	appendGlobalContext map[string]any) {
+	outputs map[string]any,
+) {
 	if tm.workflowDoneHandler == nil {
 		slog.WarnContext(ctx, "workflow manager callback not configured, skipping notification",
 			"taskID", taskID,
-			"appendGlobalContext", appendGlobalContext,
+			"outputs", outputs,
 		)
 		return
 	}
 
-	tm.workflowDoneHandler(ctx, workflowID, taskID, appendGlobalContext)
+	tm.workflowDoneHandler(ctx, workflowID, taskID, outputs)
 	slog.DebugContext(ctx, "task completion notification sent via callback",
 		"taskID", taskID,
-		"appendGlobalContext", appendGlobalContext,
+		"outputs", outputs,
 	)
 }

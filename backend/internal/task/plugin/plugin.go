@@ -54,12 +54,12 @@ type GetRenderInfoResponse struct {
 }
 
 type ExecutionResponse struct {
-	NewState            *State
-	ExtendedState       *string
-	AppendGlobalContext map[string]any
-	EmittedOutcome      *string
-	Message             string
-	ApiResponse         *ApiResponse
+	NewState       *State
+	ExtendedState  *string
+	Outputs        map[string]any
+	EmittedOutcome *string // TODO: Removed after workflow manager v1 fully deprecated
+	Message        string
+	ApiResponse    *ApiResponse
 }
 
 type Plugin interface {

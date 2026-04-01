@@ -25,13 +25,13 @@ VALUES
         "version": 1,
         "nodes": [
             { "id": "node_0_start", "type": "START" },
-            { "id": "node_1_gen_info", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000001" },
-            { "id": "node_2_cusdec", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000002" },
+            { "id": "node_1_gen_info", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000001", "output_mapping": { "gi:consignee:consignee_name": "gi:consignee:consignee_name", "gi:consignee:countryOfOrigin": "gi:consignee:countryOfOrigin", "gi:consignment:destination": "gi:consignment:destination", "gi:consignee:address": "gi:consignee:address" } },
+            { "id": "node_2_cusdec", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000002", "output_mapping": { "gi:cusdec:assesmentNo": "gi:cusdec:assesmentNo" } },
             { "id": "node_3_payment", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000008" },
 
             { "id": "gw_4_parallel_split", "type": "GATEWAY", "gateway_type": "PARALLEL_SPLIT" },
 
-            { "id": "node_5_phyto", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000003", "output_mapping": { "outcome": "phyto_outcome" } },
+            { "id": "node_5_phyto", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000003", "output_mapping": { "outcome_simple_form": "phyto_outcome" } },
             { "id": "node_6_health", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000004" },
 
             { "id": "gw_7_exclusive_split", "type": "GATEWAY", "gateway_type": "EXCLUSIVE_SPLIT" },

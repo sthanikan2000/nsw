@@ -8,13 +8,13 @@ import (
 	"net/http"
 
 	workflowManagerV2 "github.com/OpenNSW/go-temporal-workflow"
-	"github.com/OpenNSW/nsw/internal/task/plugin"
 
 	"github.com/OpenNSW/nsw/internal/auth"
 	"github.com/OpenNSW/nsw/internal/config"
 	"github.com/OpenNSW/nsw/internal/database"
 	"github.com/OpenNSW/nsw/internal/middleware"
 	taskManager "github.com/OpenNSW/nsw/internal/task/manager"
+	"github.com/OpenNSW/nsw/internal/task/plugin"
 	"github.com/OpenNSW/nsw/internal/uploads"
 	"github.com/OpenNSW/nsw/internal/uploads/drivers"
 	workflowManagerV1 "github.com/OpenNSW/nsw/internal/workflow/manager"
@@ -104,8 +104,8 @@ func setupWorkflowManagerV2(
 	// 5. Initialize Manager
 	workflowManager := workflowManagerV2.NewTemporalManager(c, "INTERPRETER_TASK_QUEUE", activationHandler, completionHandler)
 
-	taskDoneWrapper := func(ctx context.Context, workflowID string, taskID string, appendGlobalContext map[string]any) {
-		err := workflowManager.TaskDone(ctx, workflowID, "", taskID, appendGlobalContext)
+	taskDoneWrapper := func(ctx context.Context, workflowID string, taskID string, outputs map[string]any) {
+		err := workflowManager.TaskDone(ctx, workflowID, "", taskID, outputs)
 		if err != nil {
 			slog.Error("error completing task", "error", err)
 		}

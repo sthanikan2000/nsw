@@ -423,9 +423,11 @@ func (s *SimpleForm) submitHandler(ctx context.Context, content any) (*Execution
 	submissionUrl := s.submissionUrl()
 	if submissionUrl == "" {
 		return &ExecutionResponse{
-			AppendGlobalContext: globalContextPairs,
-			Message:             "Form submitted successfully",
-			ApiResponse:         &ApiResponse{Success: true},
+			Outputs: globalContextPairs,
+			Message: "Form submitted successfully",
+			ApiResponse: &ApiResponse{
+				Success: true,
+			},
 		}, nil
 	}
 
@@ -453,7 +455,7 @@ func (s *SimpleForm) submitHandler(ctx context.Context, content any) (*Execution
 		slog.Error("failed to send form submission",
 			"formId", s.config.FormID, "submissionUrl", submissionUrl, "error", err)
 		return &ExecutionResponse{
-			AppendGlobalContext: globalContextPairs,
+			Outputs: globalContextPairs,
 			ApiResponse: &ApiResponse{
 				Success: false,
 				Error:   &ApiError{Code: "FORM_SUBMISSION_FAILED", Message: "Failed to submit form to external system."},
@@ -481,9 +483,11 @@ func (s *SimpleForm) submitHandler(ctx context.Context, content any) (*Execution
 	}
 
 	return &ExecutionResponse{
-		AppendGlobalContext: globalContextPairs,
-		Message:             "Form submitted successfully",
-		ApiResponse:         &ApiResponse{Success: true},
+		Outputs: globalContextPairs,
+		Message: "Form submitted successfully",
+		ApiResponse: &ApiResponse{
+			Success: true,
+		},
 	}, nil
 }
 
@@ -516,10 +520,33 @@ func (s *SimpleForm) ogaApprovedHandler(_ context.Context, content any) (*Execut
 		}
 	}
 
+	emission := s.evaluateEmissions()
+	// If globalContextPairs has OutcomeEmitKeySimpleForm, return OutcomeEmitKey collision error. This is to prevent plugins from accidentally overwriting the emitted outcome with a user value, which would cause incorrect workflow branching.
+	if _, exists := globalContextPairs[string(OutcomeEmitKeySimpleForm)]; exists {
+		return &ExecutionResponse{
+			Outputs: globalContextPairs,
+			Message: "Form verified by OGA, but emitted outcome collision detected",
+			ApiResponse: &ApiResponse{
+				Success: false,
+				Error: &ApiError{
+					Code:    "EMITTED_OUTCOME_COLLISION",
+					Message: fmt.Sprintf("The key '%s' is reserved for emitted outcomes. Please remove it from your response mapping to avoid collisions.", OutcomeEmitKeySimpleForm),
+				},
+			},
+		}, nil
+	}
+
+	if emission != nil {
+		globalContextPairs[string(OutcomeEmitKeySimpleForm)] = *emission
+	}
+
 	return &ExecutionResponse{
-		AppendGlobalContext: globalContextPairs,
-		EmittedOutcome:      s.evaluateEmissions(),
-		Message:             "Form verified by OGA, task completed",
+		Outputs:        globalContextPairs,
+		EmittedOutcome: emission, // TODO: Removed after v1 workflow manager fully deprecated
+		Message:        "Form verified by OGA, task completed",
+		ApiResponse: &ApiResponse{
+			Success: true,
+		},
 	}, nil
 }
 
@@ -528,9 +555,25 @@ func (s *SimpleForm) ogaRejectedHandler(_ context.Context, content any) (*Execut
 	if _, err := s.parseAndStoreOgaResponse(content); err != nil {
 		return nil, err
 	}
+
+	emission := s.evaluateEmissions()
+	if emission != nil {
+		globalContextPairs := map[string]any{string(OutcomeEmitKeySimpleForm): *emission}
+		return &ExecutionResponse{
+			Outputs: globalContextPairs,
+			Message: "Form rejected by OGA, task failed",
+			ApiResponse: &ApiResponse{
+				Success: true,
+			},
+		}, nil
+	}
+
 	return &ExecutionResponse{
-		EmittedOutcome: s.evaluateEmissions(),
+		EmittedOutcome: emission, // TODO: Remove after v1 workflow manager fully deprecated
 		Message:        "Verification rejected or invalid",
+		ApiResponse: &ApiResponse{
+			Success: true,
+		},
 	}, nil
 }
 
