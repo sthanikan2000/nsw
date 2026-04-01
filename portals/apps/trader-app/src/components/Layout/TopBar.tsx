@@ -10,13 +10,13 @@ const ROLE_CONFIG: Record<Role, {
   dropdownDescription: string;
   icon: ReactNode
 }> = {
-  'nsw-trader': {
+  'trader': {
     label: 'NSW Trader',
     description: 'Managing consignments',
     dropdownDescription: 'Create and manage your own consignments',
     icon: <BackpackIcon className="text-blue-600"/>,
   },
-  'nsw-cha': {
+  'cha': {
     label: 'NSW CHA',
     description: 'Handling Customs Clearances',
     dropdownDescription: 'Handle customs clearances on behalf of traders',
@@ -86,7 +86,7 @@ export function TopBar() {
               >
                 <Select.Trigger
                   variant="soft"
-                  className={`w-full h-20 p-4 transition-all ${showSwitcher ? 'cursor-pointer hover:bg-gray-100' : 'cursor-default'}`}
+                  className={`w-full h-12 p-4 transition-all ${showSwitcher ? 'cursor-pointer hover:bg-gray-100' : 'cursor-default'}`}
                 >
                   <RoleDisplay role={role} showPrimaryLabel={!showSwitcher}/>
                 </Select.Trigger>

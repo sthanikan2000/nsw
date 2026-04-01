@@ -1,6 +1,6 @@
 import {createContext, useContext, useState, type ReactNode} from 'react'
 
-export type Role = 'nsw-trader' | 'nsw-cha'
+export type Role = 'trader' | 'cha'
 
 interface RoleContextType {
   role: Role
@@ -23,7 +23,13 @@ interface RoleProviderProps {
  * Decoupled from any specific Auth provider.
  */
 export function RoleProvider({ children, availableGroups = [], isLoading = false }: RoleProviderProps) {
-  const [role, setRoleState] = useState<Role>(availableGroups.length > 0 ? availableGroups[0] : 'nsw-trader')
+  const [role, setRoleState] = useState<Role>(() => {
+    const savedRole = localStorage.getItem('user-role') as Role
+    if (savedRole && availableGroups.includes(savedRole)) {
+      return savedRole
+    }
+    return availableGroups.length > 0 ? availableGroups[0] : 'trader'
+  })
   const [availableRoles, setAvailableRolesState] = useState<Role[]>(availableGroups)
 
   const setRole = (newRole: Role) => {
@@ -36,7 +42,9 @@ export function RoleProvider({ children, availableGroups = [], isLoading = false
   const setAvailableRoles = (roles: Role[]) => {
     setAvailableRolesState(roles)
     if (roles.length > 0 && !roles.includes(role)) {
-      setRoleState(roles[0])
+      const fallbackRole = roles[0]
+      setRoleState(fallbackRole)
+      localStorage.setItem('user-role', fallbackRole)
     }
   }
 

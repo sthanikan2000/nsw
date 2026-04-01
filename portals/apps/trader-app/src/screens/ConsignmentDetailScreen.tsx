@@ -112,7 +112,7 @@ export function ConsignmentDetailScreen() {
   const completedSteps = workflowNodes.filter(n => n.state === 'COMPLETED').length
   const totalSteps = workflowNodes.length
   const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
-  const isChaView = role === 'nsw-cha'
+  const isChaView = role === 'cha'
   const canSelectHsCode = isChaView && consignment.state === 'INITIALIZED'
 
   const handleSelectHSCode = async (hsCode: HSCode) => {

@@ -33,7 +33,7 @@ function ProtectedLayout() {
   
   return (
     <ApiProvider>
-      <RoleProvider availableGroups={['nsw-trader', 'nsw-cha']} isLoading={isLoading}>
+      <RoleProvider availableGroups={['trader', 'cha']} isLoading={isLoading}>
         <UploadWrapper>
           <Layout/>
         </UploadWrapper>

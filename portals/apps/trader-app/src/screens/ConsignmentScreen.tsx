@@ -31,7 +31,6 @@ export function ConsignmentScreen() {
   const [tradeFlowFilter, setTradeFlowFilter] = useState<string>('all')
 
   const { role } = useRole()
-  const roleView = role === 'nsw-cha' ? 'cha' : 'trader'
   const [chaId, setChaId] = useState<string>(() => {
     return window.localStorage.getItem('consignments.chaId') || ''
   })
@@ -73,8 +72,8 @@ export function ConsignmentScreen() {
           limit,
           stateFilter as ConsignmentState | 'all',
           tradeFlowFilter as TradeFlow | 'all',
-          roleView,
-          roleView === 'cha' ? chaId : undefined,
+          role,
+          role === 'cha' ? chaId : undefined,
           api
         )
         if (requestId !== listRequestIdRef.current) {
@@ -95,7 +94,7 @@ export function ConsignmentScreen() {
     }
 
     fetchConsignments()
-  }, [api, page, stateFilter, tradeFlowFilter, roleView, chaId])
+  }, [api, page, stateFilter, tradeFlowFilter, role, chaId])
 
   const resetNewConsignment = () => {
     setNewStep('trade-flow')
@@ -165,7 +164,7 @@ export function ConsignmentScreen() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Consignments</h1>
         <div className="flex gap-2">
-          {roleView === 'cha' ? null : (
+          {role === 'cha' ? null : (
             <Button onClick={() => handleNewOpenChange(true)} disabled={creating}>
               <PlusIcon />
               {creating ? 'Creating...' : 'New Consignment'}
@@ -316,7 +315,7 @@ export function ConsignmentScreen() {
               </TextField.Root>
             </div>
             <div className="flex gap-3">
-              {roleView === 'cha' ? (
+              {role === 'cha' ? (
                 <Select.Root
                   value={chaId}
                   onValueChange={(val: string) => {
@@ -372,7 +371,7 @@ export function ConsignmentScreen() {
           <div className="p-12 text-center">
             <Text size="3" color="gray">
               {consignments.length === 0
-                ? roleView === 'cha'
+                ? role === 'cha'
                   ? 'No consignments yet.'
                   : 'No consignments yet. Click "New Consignment" to create your first one.'
                 : 'No consignments match your filters.'}

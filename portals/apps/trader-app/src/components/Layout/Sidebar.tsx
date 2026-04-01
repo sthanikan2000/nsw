@@ -21,7 +21,7 @@ type NavItemOrGroup = NavItem | NavGroup;
 
 const navStructure: NavItemOrGroup[] = [
   { name: 'Consignments', path: '/consignments', icon: <DashboardIcon className="w-5 h-5" /> },
-  { name: 'Verified Docs', path: '/pre-consignments', icon: <FileTextIcon className="w-5 h-5" />, roles: ['nsw-trader'] },
+  { name: 'Verified Docs', path: '/pre-consignments', icon: <FileTextIcon className="w-5 h-5" />, roles: ['trader'] },
 ]
 
 function isNavGroup(item: NavItemOrGroup): item is NavGroup {
