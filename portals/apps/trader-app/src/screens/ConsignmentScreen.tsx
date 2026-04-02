@@ -73,7 +73,6 @@ export function ConsignmentScreen() {
           stateFilter as ConsignmentState | 'all',
           tradeFlowFilter as TradeFlow | 'all',
           role,
-          role === 'cha' ? chaId : undefined,
           api
         )
         if (requestId !== listRequestIdRef.current) {
@@ -315,25 +314,6 @@ export function ConsignmentScreen() {
               </TextField.Root>
             </div>
             <div className="flex gap-3">
-              {role === 'cha' ? (
-                <Select.Root
-                  value={chaId}
-                  onValueChange={(val: string) => {
-                    setChaId(val)
-                    window.localStorage.setItem('consignments.chaId', val)
-                    setPage(0)
-                  }}
-                >
-                  <Select.Trigger placeholder="CHA" />
-                  <Select.Content>
-                    {chaOptions.map((c) => (
-                      <Select.Item key={c.id} value={c.id}>
-                        {c.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              ) : null}
               <Select.Root
                 value={stateFilter}
                 onValueChange={(val: string) => {
