@@ -35,7 +35,7 @@ VALUES
                     "title": "Country of Origin",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignee:countryOfOrigin"
+                        "readFrom": "consignee:countryOfOrigin"
                     }
                 },
                 "declarationType": {
@@ -55,7 +55,7 @@ VALUES
                     "title": "Country of Destination",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignment:destination"
+                        "readFrom": "consignment:destination"
                     }
                 }
             }
@@ -125,7 +125,7 @@ VALUES
                     "title": "Country of Origin",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignee:countryOfOrigin"
+                        "readFrom": "consignee:countryOfOrigin"
                     }
                 },
                 "distinguishingMarks": {
@@ -138,7 +138,7 @@ VALUES
                     "title": "Country of Destination",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignment:destination"
+                        "readFrom": "consignment:destination"
                     }
                 },
                 "disinfestationTreatment": {
@@ -217,7 +217,7 @@ VALUES
                     "title": "Consignee Name",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignee:consignee_name"
+                        "readFrom": "consignee:consignee_name"
                     }
                 },
                 "batchLotNumbers": {
@@ -230,7 +230,7 @@ VALUES
                     "title": "Consignee Address",
                     "readOnly": true,
                     "x-globalContext": {
-                        "readFrom": "gi:consignee:address"
+                        "readFrom": "consignee:address"
                     }
                 },
                 "productDescription": {
@@ -331,7 +331,7 @@ VALUES
                     "type": "string",
                     "title": "Consignee Name",
                     "x-globalContext": {
-                        "writeTo": "gi:consignee:consignee_name"
+                        "writeTo": "consignee:consignee_name"
                     }
                 },
                 "countryOfOrigin": {
@@ -341,21 +341,21 @@ VALUES
                     "type": "string",
                     "title": "Country of Origin",
                     "x-globalContext": {
-                        "writeTo": "gi:consignee:countryOfOrigin"
+                        "writeTo": "consignee:countryOfOrigin"
                     }
                 },
                 "consigneeAddress": {
                     "type": "string",
                     "title": "Consignee Address",
                     "x-globalContext": {
-                        "writeTo": "gi:consignee:address"
+                        "writeTo": "consignee:address"
                     }
                 },
                 "countryOfDestination": {
                     "type": "string",
                     "title": "Country of Destination",
                     "x-globalContext": {
-                        "writeTo": "gi:consignment:destination"
+                        "writeTo": "consignment:destination"
                     }
                 }
             }

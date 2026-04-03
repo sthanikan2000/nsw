@@ -34,7 +34,7 @@ VALUES
                         "formId": "71e5e73a-ebb2-4750-aaa4-f71087adac43"
                     },
                     "mapping": {
-                        "assesmentNo": "gi:cusdec:assesmentNo"
+                        "assesmentNo": "cusdec:assesmentNo"
                     }
                 }
             }
