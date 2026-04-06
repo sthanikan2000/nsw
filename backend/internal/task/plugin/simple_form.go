@@ -80,7 +80,8 @@ type Meta struct {
 	TemplateKey      string `json:"templateKey,omitempty"`
 }
 type Request struct {
-	Meta *Meta `json:"meta"`
+	Meta     *Meta           `json:"meta,omitempty"`
+	Template json.RawMessage `json:"template,omitempty"`
 }
 type Response struct {
 	Mapping map[string]string `json:"mapping,omitempty"` // Data to be mapped to global context after submission

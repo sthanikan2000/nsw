@@ -278,20 +278,28 @@ VALUES
         'Final processing step — unlocks when both certificates are completed, or customs was fast-tracked',
         'WAIT_FOR_EVENT',
         '{
-                    "event": "WAIT_FOR_EVENT",
-                    "externalServiceUrl": "http://localhost:3001/api/process-task",
-                    "display": {
-                        "title": "Waiting for ship to leave from port",
-                        "description": "The task will be completed when the ship leaves the port. This is an external event that we are waiting for."
-                    },
-                    "submission": {
-                        "request": {
-                            "meta": {
-                                "templateKey": "port:vessel_departure:v1"
-                            }
-                        }
-                    }
-                }',
+            "display": {
+                "title": "Waiting for ship to leave from port",
+                "description": "The task will be completed when the ship leaves the port. This is an external event that we are waiting for."
+            },
+            "submission": {
+                "url": "http://localhost:8081/api/oga/inject",
+                "request": {
+                    "meta": {
+                    "templateKey": "ship_departure_v1"
+                },
+                "template": {
+                    "port_code": "departure_port",
+                    "vessel_id": "ship_identifier"
+                }
+            },
+            "response": {
+                "display": {
+                    "formId": "95d7e7fe-5be0-43cb-ac71-94bc70d3a01d"
+                }
+            }
+        }
+}',
         '[
             "c0000003-0003-0003-0003-000000000003",
             "c0000003-0003-0003-0003-000000000004",
