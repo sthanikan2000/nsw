@@ -6,12 +6,41 @@ VALUES
         'Form for applicants to submit their application for the FCAU process.',
         '{
             "type": "object",
-            "properties": {},
-            "required": []
-        }'::jsonb,
-        '{}'::jsonb,
-        1,
-        true
+            "required": [
+                "field1"
+            ],
+            "properties": {
+                "field1": {
+                    "type": "string",
+                    "title": "Field 1",
+                    "example": "Example value for field 1"
+                },
+                "supportingDocuments": {
+                    "type": "string",
+                    "title": "Supporting Documents",
+                    "format": "file"
+                }
+            }
+        }',
+        '{
+            "type": "VerticalLayout",
+            "elements": [
+                {
+                    "text": "Application Form",
+                    "type": "Label"
+                },
+                {
+                    "type": "Control",
+                    "scope": "#/properties/field1"
+                },
+                {
+                    "type": "Control",
+                    "scope": "#/properties/supportingDocuments"
+                }
+            ]
+        }',
+        '1.0',
+        TRUE
     ),
     (
         'fcau-lab-payment-form',
@@ -19,12 +48,32 @@ VALUES
         'Form for applicants to upload proof of payment for lab testing.',
         '{
             "type": "object",
-            "properties": {},
-            "required": []
-        }'::jsonb,
-        '{}'::jsonb,
-        1,
-        true
+            "required": [
+                "supportingDocuments"
+            ],
+            "properties": {
+                "supportingDocuments": {
+                    "type": "string",
+                    "title": "Upload Proof of Payment",
+                    "format": "file"
+                }
+            }
+        }',
+        '{
+            "type": "VerticalLayout",
+            "elements": [
+                {
+                    "text": "Upload Proof of Payment",
+                    "type": "Label"
+                },
+                {
+                    "type": "Control",
+                    "scope": "#/properties/supportingDocuments"
+                }
+            ]
+        }',
+        '1.0',
+        TRUE
     ),
     (
         'fcau-application-review-response',

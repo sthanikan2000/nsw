@@ -11,13 +11,13 @@ VALUES
         "nodes": [
             { "id": "start_1", "type": "START" },
             { "id": "node_1:application_submission", "type": "TASK", "task_template_id": "fcau:application_submission", "output_mapping": { } },
-            { "id": "node_2:wait_sample_drop", "type": "TASK", "task_template_id": "fcau:sample_drop", "input_mapping": { }, "output_mapping": { } },
-            { "id": "node_3:wait_testing_requirement", "type": "TASK", "task_template_id": "fcau:testing_requirement", "input_mapping": { }, "output_mapping": { "requires_lab_test": "fcau:requires_lab_test" } },
+            { "id": "node_2:wait_sample_drop", "type": "TASK", "task_template_id": "fcau:sample_drop", "input_mapping": { }, "output_mapping": { "sample_drop_confirmed": "fcau_sample_drop_confirmed" } },
+            { "id": "node_3:wait_testing_requirement", "type": "TASK", "task_template_id": "fcau:testing_requirement", "input_mapping": { }, "output_mapping": { "requires_lab_test": "fcau_requires_lab_test" } },
 
             { "id": "gw_1:requires_lab_test", "type": "GATEWAY", "gateway_type": "EXCLUSIVE_SPLIT" },
 
             { "id": "node_4:lab_payment_upload", "type": "TASK", "task_template_id": "fcau:lab_payment_upload", "input_mapping": { }, "output_mapping": { } },
-            { "id": "node_5:lab_results_review", "type": "TASK", "task_template_id": "fcau:lab_results_review", "input_mapping": { }, "output_mapping": { "lab_decision": "fcau:lab_decision" } },
+            { "id": "node_5:lab_results_review", "type": "TASK", "task_template_id": "fcau:lab_results_review", "input_mapping": { }, "output_mapping": { "lab_decision": "fcau_lab_decision" } },
 
             { "id": "gw_2:lab_pass_or_fail", "type": "GATEWAY", "gateway_type": "EXCLUSIVE_SPLIT"},
             { "id": "end_1:lab_decision_failed", "type": "END" },
@@ -36,13 +36,13 @@ VALUES
             { "id": "e_3:wait_sample_to_wait_testing_req", "source_id": "node_2:wait_sample_drop", "target_id": "node_3:wait_testing_requirement" },
             { "id": "e_4:wait_testing_to_gateway", "source_id": "node_3:wait_testing_requirement", "target_id": "gw_1:requires_lab_test" },
 
-            { "id": "e_5:gateway_to_lab_payment", "source_id": "gw_1:requires_lab_test", "target_id": "node_4:lab_payment_upload", "condition": "fcau:requires_lab_test == true" },
-            { "id": "e_6:gateway_to_join", "source_id": "gw_1:requires_lab_test", "target_id": "gw_3:proceed_to_payment", "condition": "fcau:requires_lab_test == false" },
+            { "id": "e_5:gateway_to_lab_payment", "source_id": "gw_1:requires_lab_test", "target_id": "node_4:lab_payment_upload", "condition": "fcau_requires_lab_test == ''required''" },
+            { "id": "e_6:gateway_to_join", "source_id": "gw_1:requires_lab_test", "target_id": "gw_3:proceed_to_payment", "condition": "fcau_requires_lab_test == ''not_required''" },
 
             { "id": "e_7:lab_payment_to_results_review", "source_id": "node_4:lab_payment_upload", "target_id": "node_5:lab_results_review" },
             { "id": "e_8:results_review_to_gateway", "source_id": "node_5:lab_results_review", "target_id": "gw_2:lab_pass_or_fail" },
-            { "id": "e_9:gateway_to_failed_end", "source_id": "gw_2:lab_pass_or_fail", "target_id": "end_1:lab_decision_failed", 	"condition": "fcau:lab_decision == ''failed''" },
-            { "id": "e_10:gateway_to_join", "source_id": "gw_2:lab_pass_or_fail", "target_id": "gw_3:proceed_to_payment", "condition": "fcau:lab_decision == ''passed''" },
+            { "id": "e_9:gateway_to_failed_end", "source_id": "gw_2:lab_pass_or_fail", "target_id": "end_1:lab_decision_failed", 	"condition": "fcau_lab_decision == ''failed''" },
+            { "id": "e_10:gateway_to_join", "source_id": "gw_2:lab_pass_or_fail", "target_id": "gw_3:proceed_to_payment", "condition": "fcau_lab_decision == ''passed''" },
 
             { "id": "e_11:join_to_payment", "source_id": "gw_3:proceed_to_payment", "target_id": "node_6:payment" },
             { "id": "e_12:payment_to_cert_issue", "source_id": "node_6:payment", "target_id": "node_7:certificate_issue" },
