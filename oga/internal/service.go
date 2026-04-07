@@ -307,11 +307,13 @@ func (s *ogaService) ReviewApplication(ctx context.Context, taskID string, revie
 		return err
 	}
 
-	decision, ok := reviewerResponse["decision"].(string)
-	if !ok || decision == "" {
-		return fmt.Errorf("reviewerResponse must contain a non-empty 'decision' string")
-	}
-	status := decision
+	// decision, ok := reviewerResponse["decision"].(string)
+	// if !ok || decision == "" {
+	// 	return fmt.Errorf("reviewerResponse must contain a non-empty 'decision' string")
+	// }
+	// status := strings.ToUpper(decision)
+
+	status := "DONE"
 
 	if err := s.store.UpdateStatus(taskID, status, reviewerResponse); err != nil {
 		return fmt.Errorf("failed to update application status: %w", err)
