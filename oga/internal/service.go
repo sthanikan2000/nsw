@@ -49,6 +49,7 @@ type OGAService interface {
 type Meta struct {
 	VerificationType string `json:"type"`
 	VerificationId   string `json:"verificationId"`
+	TemplateKey      string `json:"templateKey,omitempty"`
 }
 
 // InjectRequest represents the incoming data from services

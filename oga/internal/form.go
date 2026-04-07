@@ -76,5 +76,5 @@ func FormIDFromMeta(m *Meta) string {
 	if m == nil {
 		return ""
 	}
-	return m.VerificationType + ":" + m.VerificationId
+	return m.TemplateKey
 }
