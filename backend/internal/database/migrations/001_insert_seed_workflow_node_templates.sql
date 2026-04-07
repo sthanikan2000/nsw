@@ -231,23 +231,30 @@ VALUES
         'e1a00001-0001-4000-b000-000000000007',
         'Manual Inspection',
         'Manual inspection task for high-risk phytosanitary cases',
-        'SIMPLE_FORM',
+        'WAIT_FOR_EVENT',
         ('{
-            "agency": "NPQS",
-            "formId": "f1a00001-0001-4000-c000-000000000001",
-            "service": "plant-quarantine-phytosanitary",
-            "callback": {
-                "response": {
-                    "display": {
-                        "formId": "f1a00001-0001-4000-c000-000000000002"
-                    }
-                }
+            "display": {
+                "title": "Awaiting Physical Inspection",
+                "description": "Consignment flagged for physical inspection. NPQS inspector will review the consignment on-site."
             },
             "submission": {
                 "url": ' || to_jsonb((:'NPQS_OGA_SUBMISSION_URL')::text)::text || ',
                 "request": {
                     "meta": {
                         "templateKey": "npqs:manual_inspection:v1"
+                    },
+                    "template": {
+                        "consignee_name": "consignee:consignee_name",
+                        "consigneeAddress": "consignee:address"
+                    }
+                },
+                "response": {
+                    "display": {
+                        "formId": "f1a00001-0001-4000-c000-000000000002"
+                    },
+                    "mapping": {
+                        "inspectionDecision": "npqs:manual_inspection:decision",
+                        "inspectorRemarks": "npqs:manual_inspection:remarks"
                     }
                 }
             }
@@ -278,20 +285,28 @@ VALUES
         'Final processing step — unlocks when both certificates are completed, or customs was fast-tracked',
         'WAIT_FOR_EVENT',
         '{
-                    "event": "WAIT_FOR_EVENT",
-                    "externalServiceUrl": "http://localhost:3001/api/process-task",
-                    "display": {
-                        "title": "Waiting for ship to leave from port",
-                        "description": "The task will be completed when the ship leaves the port. This is an external event that we are waiting for."
-                    },
-                    "submission": {
-                        "request": {
-                            "meta": {
-                                "templateKey": "port:vessel_departure:v1"
-                            }
-                        }
-                    }
-                }',
+            "display": {
+                "title": "Waiting for ship to leave from port",
+                "description": "The task will be completed when the ship leaves the port. This is an external event that we are waiting for."
+            },
+            "submission": {
+                "url": "http://localhost:8081/api/oga/inject",
+                "request": {
+                    "meta": {
+                    "templateKey": "ship_departure_v1"
+                },
+                "template": {
+                    "port_code": "departure_port",
+                    "vessel_id": "ship_identifier"
+                }
+            },
+            "response": {
+                "display": {
+                    "formId": "95d7e7fe-5be0-43cb-ac71-94bc70d3a01d"
+                }
+            }
+        }
+}',
         '[
             "c0000003-0003-0003-0003-000000000003",
             "c0000003-0003-0003-0003-000000000004",

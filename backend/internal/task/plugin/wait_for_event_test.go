@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	formmodel "github.com/OpenNSW/nsw/internal/form/model"
 	"github.com/OpenNSW/nsw/pkg/remote"
 )
 
@@ -53,6 +54,17 @@ func (a *wfeAPI) calledWith(action string) bool {
 	return false
 }
 
+type mockFormService struct {
+	getFormByID func(ctx context.Context, formID string) (*formmodel.FormResponse, error)
+}
+
+func (m *mockFormService) GetFormByID(ctx context.Context, formID string) (*formmodel.FormResponse, error) {
+	if m.getFormByID != nil {
+		return m.getFormByID(ctx, formID)
+	}
+	return nil, nil
+}
+
 func newWFETask(t *testing.T, serverURL string) (*WaitForEventTask, *wfeAPI) {
 	t.Helper()
 
@@ -80,11 +92,15 @@ func newWFETask(t *testing.T, serverURL string) (*WaitForEventTask, *wfeAPI) {
 		}
 	}
 
-	raw, err := json.Marshal(WaitForEventConfig{ExternalServiceURL: serverURL})
+	raw, err := json.Marshal(WaitForEventConfig{
+		Submission: &SubmissionConfig{
+			Url: serverURL,
+		},
+	})
 	if err != nil {
 		t.Fatalf("marshal config: %v", err)
 	}
-	task, err := NewWaitForEventTask(raw, "http://localhost:8080", mgr)
+	task, err := NewWaitForEventTask(raw, "http://localhost:8080", mgr, &mockFormService{})
 	if err != nil {
 		t.Fatalf("NewWaitForEventTask: %v", err)
 	}
@@ -242,7 +258,7 @@ func TestWaitForEventTask_Execute_NilRequest(t *testing.T) {
 // ── NewWaitForEventTask ───────────────────────────────────────────────────────
 
 func TestNewWaitForEventTask_InvalidJSON(t *testing.T) {
-	_, err := NewWaitForEventTask(json.RawMessage(`{invalid}`), "http://localhost:8080", nil)
+	_, err := NewWaitForEventTask(json.RawMessage(`{invalid}`), "http://localhost:8080", nil, nil)
 	require.Error(t, err)
 }
 
@@ -270,7 +286,9 @@ func TestWaitForEventTask_GetRenderInfo_NoDisplay(t *testing.T) {
 
 func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 	raw, err := json.Marshal(WaitForEventConfig{
-		ExternalServiceURL: "http://irrelevant",
+		Submission: &SubmissionConfig{
+			Url: "http://irrelevant",
+		},
 		Display: &WaitForEventDisplay{
 			Title:       "Awaiting verification",
 			Description: "Please wait while we process your request.",
@@ -278,7 +296,7 @@ func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil)
+	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
 	require.NoError(t, taskErr)
 	api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString(), pluginState: string(notifiedService)}
 	task.Init(api)
@@ -298,15 +316,19 @@ func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 // ── Start edge cases ──────────────────────────────────────────────────────────
 
 func TestWaitForEventTask_Start_EmptyURL(t *testing.T) {
-	raw, _ := json.Marshal(WaitForEventConfig{ExternalServiceURL: ""})
-	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil)
+	raw, _ := json.Marshal(WaitForEventConfig{
+		Submission: &SubmissionConfig{
+			Url: "",
+		},
+	})
+	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
 	require.NoError(t, taskErr)
 	api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString()}
 	task.Init(api)
 
 	resp, err := task.Start(context.Background())
 
-	require.ErrorContains(t, err, "externalServiceUrl not configured")
+	require.ErrorContains(t, err, "submission url not configured")
 	assert.Nil(t, resp)
 	assert.Empty(t, api.transitionCalls, "no transition should occur when URL is missing")
 }
