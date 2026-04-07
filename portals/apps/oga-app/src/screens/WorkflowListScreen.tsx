@@ -27,6 +27,12 @@ export function WorkflowListScreen() {
           pageSize: PAGE_SIZE,
           q: searchQuery 
         })
+        if (result.total === 0) {
+          setWorkflows([])
+          setTotal(0)
+          setPage(1)
+          return
+        }
         setWorkflows(result.items)
         setTotal(result.total)
       } catch (error) {

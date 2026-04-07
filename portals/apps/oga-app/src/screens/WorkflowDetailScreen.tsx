@@ -351,10 +351,36 @@ export function WorkflowDetailScreen() {
                               Request Changes
                             </Button>
                           )}
-                          <Button type="submit" disabled={isSubmitting || isSendingFeedback}>
-                            {isSubmitting ? <Spinner size="1" /> : null}
-                            Submit Review
-                          </Button>
+                          {isFeedbackSupported && application.status === 'FEEDBACK_REQUESTED' && (
+                            <Button
+                              variant="soft"
+                              color="amber"
+                              type="button"
+                              disabled
+                            >
+                              Awaiting Resubmission
+                            </Button>
+                          )}
+                          {isFeedbackSupported && application.status !== 'FEEDBACK_REQUESTED' && (
+                            <Button
+                              variant="soft"
+                              color="blue"
+                              type="submit"
+                              disabled={isSubmitting || isSendingFeedback}
+                            >
+                              Submit Review
+                            </Button>
+                          )}
+                          {!isFeedbackSupported && (
+                            <Button
+                              variant="soft"
+                              color="blue"
+                              type="submit"
+                              disabled={isSubmitting || isSendingFeedback}
+                            >
+                              Submit
+                            </Button>
+                          )}
                         </Flex>
                       </form>
                     ) : formConfig ? (
