@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS workflow_template_v2 (
 -- Insert Data into workflow_template_v2
 INSERT INTO workflow_template_v2 (id, name, version, workflow_definition)
 VALUES
+-- TODO: For the manual inspection Node, the input mapping "npqs:phytosanitary:meta:reviewedAt": "phytosanitary:meta:reviewedAt" and "npqs:phytosanitary:meta:reviewNotes": "phytosanitary:meta:reviewNotes" ignored,
+-- If we want to include them, In the OGA side template of the form these fields should be defined as required
 (
     'trade-export-v1',
     'General Information & Certificate Approvals',
@@ -31,16 +33,16 @@ VALUES
 
             { "id": "gw_4_parallel_split", "type": "GATEWAY", "gateway_type": "PARALLEL_SPLIT" },
 
-            { "id": "node_5_phyto", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000003", "input_mapping": { "gi:consignee:countryOfOrigin": "consignee:countryOfOrigin", "gi:consignment:destination": "consignment:destination" }, "output_mapping": { "outcome_simple_form": "phyto_outcome" } },
+            { "id": "node_5_phyto", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000003", "input_mapping": { "gi:consignee:countryOfOrigin": "consignee:countryOfOrigin", "gi:consignment:destination": "consignment:destination" }, "output_mapping": { "outcome_simple_form": "phyto_outcome", "phytosanitary:meta:reviewedAt": "npqs:phytosanitary:meta:reviewedAt", "phytosanitary:meta:reviewNotes": "npqs:phytosanitary:meta:reviewNotes" } },
             { "id": "node_6_health", "type": "TASK", "task_template_id": "c0000003-0003-0003-0003-000000000004", "input_mapping": { "gi:consignee:consignee_name": "consignee:consignee_name", "gi:consignee:address": "consignee:address" } },
 
             { "id": "gw_7_exclusive_split", "type": "GATEWAY", "gateway_type": "EXCLUSIVE_SPLIT" },
-            { "id": "node_8_manual_inspect", "type": "TASK", "task_template_id": "e1a00001-0001-4000-b000-000000000007" },
+            { "id": "node_8_manual_inspect", "type": "TASK", "task_template_id": "e1a00001-0001-4000-b000-000000000007", "input_mapping": { "gi:consignee:consignee_name": "consignee:consignee_name", "gi:consignee:address": "consignee:address" } },
             { "id": "gw_9_exclusive_join", "type": "GATEWAY", "gateway_type": "EXCLUSIVE_JOIN" },
 
             { "id": "gw_10_parallel_join", "type": "GATEWAY", "gateway_type": "PARALLEL_JOIN" },
 
-            { "id": "node_11_final_process", "type": "TASK", "task_template_id": "e1a00001-0001-4000-b000-000000000005" },
+            { "id": "node_11_final_process", "type": "TASK", "task_template_id": "e1a00001-0001-4000-b000-000000000005", "input_mapping": { "gi:consignee:consignee_name": "consignee:consignee_name", "gi:consignee:address": "consignee:address" }},
             { "id": "node_12_end", "type": "END" }
         ],
         "edges": [

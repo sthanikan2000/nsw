@@ -93,8 +93,10 @@ func newWFETask(t *testing.T, serverURL string) (*WaitForEventTask, *wfeAPI) {
 	}
 
 	raw, err := json.Marshal(WaitForEventConfig{
-		Submission: &SubmissionConfig{
-			Url: serverURL,
+		Submission: &SubmissionConfigWFE{
+			SubmissionConfig: SubmissionConfig{
+				Url: serverURL,
+			},
 		},
 	})
 	if err != nil {
@@ -286,8 +288,10 @@ func TestWaitForEventTask_GetRenderInfo_NoDisplay(t *testing.T) {
 
 func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 	raw, err := json.Marshal(WaitForEventConfig{
-		Submission: &SubmissionConfig{
-			Url: "http://irrelevant",
+		Submission: &SubmissionConfigWFE{
+			SubmissionConfig: SubmissionConfig{
+				Url: "http://irrelevant",
+			},
 		},
 		Display: &WaitForEventDisplay{
 			Title:       "Awaiting verification",
@@ -317,8 +321,10 @@ func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 
 func TestWaitForEventTask_Start_EmptyURL(t *testing.T) {
 	raw, _ := json.Marshal(WaitForEventConfig{
-		Submission: &SubmissionConfig{
-			Url: "",
+		Submission: &SubmissionConfigWFE{
+			SubmissionConfig: SubmissionConfig{
+				Url: "",
+			},
 		},
 	})
 	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)

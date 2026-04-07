@@ -117,8 +117,8 @@ VALUES
                         "formId": "d0c3b860-635b-4124-8081-d3f421e429cb"
                     },
                     "mapping": {
-                        "reviewedAt": "gi:phytosanitary:meta:reviewedAt",
-                        "reviewerNotes": "gi:phytosanitary:meta:reviewNotes"
+                        "reviewedAt": "phytosanitary:meta:reviewedAt",
+                        "reviewerNotes": "phytosanitary:meta:reviewNotes"
                     }
                 },
                 "transition": {
@@ -242,11 +242,6 @@ VALUES
                 "request": {
                     "meta": {
                         "templateKey": "npqs:manual_inspection:v1"
-                    },
-                    "template": {
-                        "assesmentNo": "cusdec:assesmentNo",
-                        "consignmentId": "gi:consignmentId",
-                        "riskLevel": "npqs:phytosanitary:riskLevel"
                     }
                 },
                 "response": {
@@ -257,7 +252,13 @@ VALUES
                         "inspectionDecision": "npqs:manual_inspection:decision",
                         "inspectorRemarks": "npqs:manual_inspection:remarks"
                     }
-                }
+                },
+                "inputFromGlobalContext": [
+                    "consignee:consignee_name",
+                    "consignee:address",
+                    "phytosanitary:meta:reviewedAt",
+                    "phytosanitary:meta:reviewNotes"
+                ]
             }
         }')::jsonb,
         '[
@@ -296,10 +297,10 @@ VALUES
                     "meta": {
                     "templateKey": "ship_departure_v1"
                 },
-                "template": {
-                    "port_code": "departure_port",
-                    "vessel_id": "ship_identifier"
-                }
+                "inputFromGlobalContext": [
+                    "consignee:consignee_name",
+                    "consignee:address"
+                ]
             },
             "response": {
                 "display": {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/OpenNSW/nsw/internal/form"
 	"github.com/OpenNSW/nsw/pkg/jsonform"
-	"github.com/OpenNSW/nsw/pkg/jsonutils"
 	"github.com/OpenNSW/nsw/pkg/remote"
 )
 
@@ -28,6 +27,11 @@ const (
 	waitForEventFSMComplete    = "OGA_VERIFICATION"
 )
 
+type SubmissionConfigWFE struct {
+	SubmissionConfig
+	InputFromGlobalContext []string `json:"inputFromGlobalContext,omitempty"` // Global context values to inject into data before submission.
+}
+
 // WaitForEventDisplay holds optional UI display metadata for the portal
 type WaitForEventDisplay struct {
 	Title       string `json:"title"`
@@ -37,7 +41,7 @@ type WaitForEventDisplay struct {
 // WaitForEventConfig represents the configuration for a WAIT_FOR_EVENT task
 type WaitForEventConfig struct {
 	Display    *WaitForEventDisplay `json:"display,omitempty"`
-	Submission *SubmissionConfig    `json:"submission,omitempty"`
+	Submission *SubmissionConfigWFE `json:"submission,omitempty"`
 }
 
 type WaitForEventTask struct {
@@ -239,19 +243,16 @@ func (t *WaitForEventTask) notifyExternalService(ctx context.Context, taskID str
 
 // resolveInputData builds a data map by looking up values from global store based on Template
 func (t *WaitForEventTask) resolveInputData(ctx context.Context) any {
-	if t.config.Submission == nil || t.config.Submission.Request == nil || len(t.config.Submission.Request.Template) == 0 {
+	if t.config.Submission == nil || t.config.Submission.Request == nil || len(t.config.Submission.InputFromGlobalContext) == 0 {
 		return nil
 	}
 
-	var template any
-	if err := json.Unmarshal(t.config.Submission.Request.Template, &template); err != nil {
-		slog.ErrorContext(ctx, "failed to unmarshal submission template", "error", err)
-		return nil
+	var inputData = make(map[string]any)
+	for _, key := range t.config.Submission.InputFromGlobalContext {
+		inputData[key] = t.lookupValueFromGlobalStore(ctx, key)
 	}
 
-	return jsonutils.ResolveTemplate(template, func(path string) any {
-		return t.lookupValueFromGlobalStore(ctx, path)
-	})
+	return inputData
 }
 
 // lookupValueFromGlobalStore retrieves a value from global store using a direct key
