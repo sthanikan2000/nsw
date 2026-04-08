@@ -247,3 +247,35 @@ func (h *OGAHandler) HandleGetUploadURL(w http.ResponseWriter, r *http.Request) 
 		"expires_at":   time.Now().Add(15 * time.Minute).Unix(),
 	})
 }
+
+// HandleUpload handles POST /api/oga/uploads
+// Proxies the file upload to the main backend
+func (h *OGAHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Limit upload size to 10MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		WriteJSONError(w, http.StatusBadRequest, "Failed to parse multipart form: "+err.Error())
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		WriteJSONError(w, http.StatusBadRequest, "file is required")
+		return
+	}
+	defer func() { _ = file.Close() }()
+
+	metadata, err := h.service.UploadFile(r.Context(), header.Filename, header.Header.Get("Content-Type"), file)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to proxy upload to backend", "error", err)
+		WriteJSONError(w, http.StatusInternalServerError, "failed to upload file: "+err.Error())
+		return
+	}
+
+	WriteJSONResponse(w, http.StatusOK, metadata)
+}

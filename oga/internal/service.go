@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -41,6 +43,9 @@ type OGAService interface {
 
 	// GetDownloadURL fetches a download URL for a key from the main backend.
 	GetDownloadURL(ctx context.Context, key string) (string, error)
+
+	// UploadFile proxies a file upload to the NSW backend.
+	UploadFile(ctx context.Context, fileName string, contentType string, fileReader io.Reader) (map[string]any, error)
 
 	// Close closes the service and releases resources
 	Close() error
@@ -447,6 +452,44 @@ func (s *ogaService) GetDownloadURL(ctx context.Context, key string) (string, er
 
 	slog.InfoContext(ctx, "resolved download URL from metadata", "key", key, "downloadURL", metadata.DownloadURL)
 	return metadata.DownloadURL, nil
+}
+
+// UploadFile proxies a file upload to the NSW backend.
+func (s *ogaService) UploadFile(ctx context.Context, fileName string, contentType string, fileReader io.Reader) (map[string]any, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, fileReader); err != nil {
+		return nil, fmt.Errorf("failed to copy file content: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	resp, err := s.httpClient.Do(func() *http.Request {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, s.httpClient.BaseURL+"uploads", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		return req
+	}())
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute upload request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("backend returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var metadata map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+		return nil, fmt.Errorf("failed to decode upload response: %w", err)
+	}
+
+	return metadata, nil
 }
 
 // feedbackHistoryFromRaw converts the raw JSONB slice from the store into typed feedback entries.
