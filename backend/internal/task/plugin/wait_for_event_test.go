@@ -313,6 +313,166 @@ func TestWaitForEventTask_GetRenderInfo_WithDisplay(t *testing.T) {
 	assert.Equal(t, "Please wait while we process your request.", display.Description)
 }
 
+func TestWaitForEventTask_GetRenderInfo_WithDynamicDisplay_UsesPluginState(t *testing.T) {
+	tests := []struct {
+		name          string
+		pluginState   string
+		expectedTitle string
+		expectedDesc  string
+	}{
+		{
+			name:          "waiting state",
+			pluginState:   string(notifiedService),
+			expectedTitle: "Waiting on Sample Drop Off Confirmation",
+			expectedDesc:  "Please drop off your sample at the designated location and confirm the drop off by clicking on this task",
+		},
+		{
+			name:          "failed state",
+			pluginState:   string(notifyFailed),
+			expectedTitle: "Sample Drop Off Confirmation Failed",
+			expectedDesc:  "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.",
+		},
+		{
+			name:          "completed state",
+			pluginState:   string(receivedCallback),
+			expectedTitle: "Sample Drop Off Confirmation Completed",
+			expectedDesc:  "We have received confirmation of your sample drop off. We will notify you once the test results are available.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(WaitForEventConfig{
+				Submission: &SubmissionConfig{Url: "http://irrelevant"},
+				Display: &WaitForEventDisplay{
+					Title: map[string]any{
+						"waiting":   "Waiting on Sample Drop Off Confirmation",
+						"failed":    "Sample Drop Off Confirmation Failed",
+						"completed": "Sample Drop Off Confirmation Completed",
+					},
+					Description: map[string]any{
+						"waiting":   "Please drop off your sample at the designated location and confirm the drop off by clicking on this task",
+						"failed":    "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.",
+						"completed": "We have received confirmation of your sample drop off. We will notify you once the test results are available.",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
+			require.NoError(t, taskErr)
+			api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString(), pluginState: tt.pluginState}
+			task.Init(api)
+
+			resp, err := task.GetRenderInfo(context.Background())
+			require.NoError(t, err)
+
+			content, ok := resp.Data.(GetRenderInfoResponse).Content.(map[string]any)
+			require.True(t, ok)
+			display, ok := content["display"].(*WaitForEventDisplay)
+			require.True(t, ok)
+			assert.Equal(t, tt.expectedTitle, display.Title)
+			assert.Equal(t, tt.expectedDesc, display.Description)
+		})
+	}
+}
+
+func TestWaitForEventTask_GetRenderInfo_WithMixedDisplayShape(t *testing.T) {
+	raw, err := json.Marshal(WaitForEventConfig{
+		Submission: &SubmissionConfig{Url: "http://irrelevant"},
+		Display: &WaitForEventDisplay{
+			Title: "Sample Drop Off Confirmation",
+			Description: map[string]any{
+				"waiting":   "Please drop off your sample at the designated location and confirm the drop off by clicking on this task",
+				"failed":    "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.",
+				"completed": "We have received confirmation of your sample drop off. We will notify you once the test results are available.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
+	require.NoError(t, taskErr)
+	api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString(), pluginState: string(notifyFailed)}
+	task.Init(api)
+
+	resp, err := task.GetRenderInfo(context.Background())
+	require.NoError(t, err)
+
+	content, ok := resp.Data.(GetRenderInfoResponse).Content.(map[string]any)
+	require.True(t, ok)
+	display, ok := content["display"].(*WaitForEventDisplay)
+	require.True(t, ok)
+	assert.Equal(t, "Sample Drop Off Confirmation", display.Title)
+	assert.Equal(t, "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.", display.Description)
+}
+
+func TestWaitForEventTask_GetRenderInfo_DynamicDisplayMissingStateKey_FallsBackToEmptyDisplay(t *testing.T) {
+	raw, err := json.Marshal(WaitForEventConfig{
+		Submission: &SubmissionConfig{Url: "http://irrelevant"},
+		Display: &WaitForEventDisplay{
+			Title: map[string]any{
+				"waiting": "Waiting on Sample Drop Off Confirmation",
+				"failed":  "Sample Drop Off Confirmation Failed",
+			},
+			Description: map[string]any{
+				"waiting": "Please drop off your sample at the designated location and confirm the drop off by clicking on this task",
+				"failed":  "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
+	require.NoError(t, taskErr)
+	api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString(), pluginState: string(receivedCallback)}
+	task.Init(api)
+
+	resp, err := task.GetRenderInfo(context.Background())
+	require.NoError(t, err)
+
+	content, ok := resp.Data.(GetRenderInfoResponse).Content.(map[string]any)
+	require.True(t, ok)
+	display, ok := content["display"].(*WaitForEventDisplay)
+	require.True(t, ok)
+	assert.Nil(t, display.Title)
+	assert.Nil(t, display.Description)
+}
+
+func TestWaitForEventTask_GetRenderInfo_UnknownPluginState_FallsBackToEmptyDisplay(t *testing.T) {
+	raw, err := json.Marshal(WaitForEventConfig{
+		Submission: &SubmissionConfig{Url: "http://irrelevant"},
+		Display: &WaitForEventDisplay{
+			Title: map[string]any{
+				"waiting":   "Waiting on Sample Drop Off Confirmation",
+				"failed":    "Sample Drop Off Confirmation Failed",
+				"completed": "Sample Drop Off Confirmation Completed",
+			},
+			Description: map[string]any{
+				"waiting":   "Please drop off your sample at the designated location and confirm the drop off by clicking on this task",
+				"failed":    "We have not received confirmation of your sample drop off. Please confirm that you have dropped off your sample by clicking on this task.",
+				"completed": "We have received confirmation of your sample drop off. We will notify you once the test results are available.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	task, taskErr := NewWaitForEventTask(raw, "http://localhost:8080", nil, nil)
+	require.NoError(t, taskErr)
+	api := &wfeAPI{taskID: uuid.NewString(), workflowID: uuid.NewString(), pluginState: "UNKNOWN_STATE"}
+	task.Init(api)
+
+	resp, err := task.GetRenderInfo(context.Background())
+	require.NoError(t, err)
+
+	content, ok := resp.Data.(GetRenderInfoResponse).Content.(map[string]any)
+	require.True(t, ok)
+	display, ok := content["display"].(*WaitForEventDisplay)
+	require.True(t, ok)
+	assert.Nil(t, display.Title)
+	assert.Nil(t, display.Description)
+}
+
 // ── Start edge cases ──────────────────────────────────────────────────────────
 
 func TestWaitForEventTask_Start_EmptyURL(t *testing.T) {

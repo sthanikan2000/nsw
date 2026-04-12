@@ -21,6 +21,14 @@ const (
 	receivedCallback waitForEventState = "RECEIVED_CALLBACK"
 )
 
+type DisplayState string
+
+const (
+	DisplayStateWaiting   DisplayState = "waiting"
+	DisplayStateFailed    DisplayState = "failed"
+	DisplayStateCompleted DisplayState = "completed"
+)
+
 // Internal FSM actions for WaitForEventTask.
 const (
 	waitForEventFSMStartFailed = "START_FAILED"
@@ -30,8 +38,16 @@ const (
 
 // WaitForEventDisplay holds optional UI display metadata for the portal
 type WaitForEventDisplay struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       any `json:"title"`
+	Description any `json:"description"`
+}
+
+// If Title or Description in WaitForEventDisplay is an object, it should have the following structure to support different text based on task state.
+// Else it will be treated as static text.
+type WaitForEventExtendedDisplay struct {
+	Waiting   *string `json:"waiting,omitempty"`
+	Failed    *string `json:"failed,omitempty"`
+	Completed *string `json:"completed,omitempty"`
 }
 
 // WaitForEventConfig represents the configuration for a WAIT_FOR_EVENT task
@@ -92,10 +108,15 @@ func NewWaitForEventFSM() *PluginFSM {
 
 func (t *WaitForEventTask) renderContent(ctx context.Context) map[string]any {
 	content := map[string]any{}
+	var err error
 	if t.config.Display != nil {
-		content["display"] = t.config.Display
+		state := waitForEventState(t.api.GetPluginState())
+		content["display"], err = t.getDisplay(state)
+		if err != nil {
+			slog.Warn("failed to get display for wait_for_event task, using empty display", "taskId", t.api.GetTaskID(), "error", err)
+			content["display"] = &WaitForEventDisplay{}
+		}
 	}
-
 	// Attach OGA/Reviewer response if it exists in local store
 	if t.config.Submission != nil && t.config.Submission.Response != nil {
 		t.attachFormDisplay(ctx, content, "eventResponse", displayFormID(t.config.Submission.Response), "eventReviewForm")
@@ -235,6 +256,61 @@ func (t *WaitForEventTask) notifyExternalService(ctx context.Context, taskID str
 		return fmt.Errorf("failed to notify external service %q: %w", target, err)
 	}
 	return nil
+}
+
+// getDisplay returns the appropriate title and description based on the current state of the task and the display configuration.
+func (t *WaitForEventTask) getDisplay(state waitForEventState) (*WaitForEventDisplay, error) {
+	if t.config.Display == nil {
+		return nil, fmt.Errorf("display configuration is missing")
+	}
+
+	var resolvedState DisplayState
+	switch state {
+	case notifiedService:
+		resolvedState = DisplayStateWaiting
+	case notifyFailed:
+		resolvedState = DisplayStateFailed
+	case receivedCallback:
+		resolvedState = DisplayStateCompleted
+	default:
+		return nil, fmt.Errorf("unsupported wait_for_event plugin state %q", state)
+	}
+
+	resolvedDisplay := &WaitForEventDisplay{}
+	title, err := resolveDisplayField(t.config.Display.Title, resolvedState, "title")
+	if err != nil {
+		return nil, err
+	}
+	resolvedDisplay.Title = title
+
+	description, err := resolveDisplayField(t.config.Display.Description, resolvedState, "description")
+	if err != nil {
+		return nil, err
+	}
+	resolvedDisplay.Description = description
+
+	return resolvedDisplay, nil
+}
+
+func resolveDisplayField(field any, state DisplayState, fieldName string) (any, error) {
+	switch values := field.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		return values, nil
+	case map[string]any:
+		value, exists := values[string(state)]
+		if !exists {
+			return nil, fmt.Errorf("%s for state %q not found in display configuration", fieldName, state)
+		}
+		strValue, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for display %s at state %q, expected string", fieldName, state)
+		}
+		return strValue, nil
+	default:
+		return nil, fmt.Errorf("invalid type for display %s, expected string or map[string]any", fieldName)
+	}
 }
 
 // resolveInputData builds a data map by looking up values from global store based on Template
