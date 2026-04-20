@@ -208,7 +208,7 @@ func TestUpload_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/uploads", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := withAuthContext(req.Context(), &auth.AuthContext{
-		UserID: "trader-1", UserContext: &auth.UserContext{UserID: "trader-1"},
+		User: &auth.UserContext{UserID: "trader-1"},
 	})
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
