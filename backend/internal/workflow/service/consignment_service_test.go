@@ -44,6 +44,14 @@ func (m *MockTemplateProvider) GetWorkflowTemplateByID(ctx context.Context, id s
 	return args.Get(0).(*model.WorkflowTemplate), args.Error(1)
 }
 
+func (m *MockTemplateProvider) GetWorkflowTemplateByIDV2(ctx context.Context, id string) (*model.WorkflowTemplateV2, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.WorkflowTemplateV2), args.Error(1)
+}
+
 func (m *MockTemplateProvider) GetWorkflowNodeTemplatesByIDs(ctx context.Context, ids []string) ([]model.WorkflowNodeTemplate, error) {
 	args := m.Called(ctx, ids)
 	if args.Get(0) == nil {

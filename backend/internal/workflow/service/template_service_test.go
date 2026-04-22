@@ -72,6 +72,25 @@ func TestTemplateService_GetWorkflowTemplateByID(t *testing.T) {
 	assert.Equal(t, id, result.ID)
 }
 
+func TestTemplateService_GetWorkflowTemplateByIDV2(t *testing.T) {
+	db, sqlMock := setupTestDB(t)
+	service := NewTemplateService(db)
+	ctx := context.Background()
+
+	id := uuid.NewString()
+
+	// Expectation
+	sqlMock.ExpectQuery(`SELECT \* FROM "workflow_template_v2" WHERE id = \$1 ORDER BY "workflow_template_v2"."id" LIMIT \$2`).
+		WithArgs(id, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(id, "Test Template V2"))
+
+	result, err := service.GetWorkflowTemplateByIDV2(ctx, id)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, id, result.ID)
+}
+
 func TestTemplateService_GetWorkflowNodeTemplateByID(t *testing.T) {
 	db, sqlMock := setupTestDB(t)
 	service := NewTemplateService(db)
