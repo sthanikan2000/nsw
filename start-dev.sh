@@ -7,6 +7,7 @@ ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
 RUN_IDP=true
 RUN_TEMPORAL=true
 RUN_MIGRATIONS=true
+CLEAN_DB=true
 
 for arg in "$@"; do
   case "$arg" in
@@ -22,9 +23,12 @@ for arg in "$@"; do
     --skip-temporal)
       RUN_TEMPORAL=false
       ;;
+    --skip-clean-db)
+      CLEAN_DB=false
+      ;;
     *)
       echo "Unknown argument: $arg"
-      echo "Usage: ./start-dev.sh [--env-file=/path/to/.env] [--skip-idp] [--skip-migrations] [--skip-temporal]"
+      echo "Usage: ./start-dev.sh [--env-file=/path/to/.env] [--skip-idp] [--skip-migrations] [--skip-temporal] [--skip-clean-db]"
       exit 1
       ;;
   esac
@@ -152,6 +156,75 @@ OGA_NSW_TOKEN_URL="${OGA_NSW_TOKEN_URL:-https://localhost:${IDP_PORT}/oauth2/tok
 OGA_NSW_SCOPES="${OGA_NSW_SCOPES:-}"
 OGA_NSW_TOKEN_INSECURE_SKIP_VERIFY="${OGA_NSW_TOKEN_INSECURE_SKIP_VERIFY:-true}"
 
+# OGA instance registry
+# Each row: name | backend_port | db_path | nsw_client_id | nsw_client_secret | app_port | instance_config | idp_client_id
+OGA_INSTANCES=(
+  "npqs|$OGA_NPQS_PORT|$OGA_NPQS_DB_PATH|$OGA_NSW_NPQS_CLIENT_ID|$OGA_NSW_NPQS_CLIENT_SECRET|$OGA_APP_NPQS_PORT|$OGA_APP_NPQS_INSTANCE_CONFIG|$NPQS_IDP_CLIENT_ID"
+  "fcau|$OGA_FCAU_PORT|$OGA_FCAU_DB_PATH|$OGA_NSW_FCAU_CLIENT_ID|$OGA_NSW_FCAU_CLIENT_SECRET|$OGA_APP_FCAU_PORT|$OGA_APP_FCAU_INSTANCE_CONFIG|$FCAU_IDP_CLIENT_ID"
+  "ird|$OGA_IRD_PORT|$OGA_IRD_DB_PATH|$OGA_NSW_IRD_CLIENT_ID|$OGA_NSW_IRD_CLIENT_SECRET|$OGA_APP_IRD_PORT|$OGA_APP_IRD_INSTANCE_CONFIG|$IRD_IDP_CLIENT_ID"
+  "cda|$OGA_CDA_PORT|$OGA_CDA_DB_PATH|$OGA_NSW_CDA_CLIENT_ID|$OGA_NSW_CDA_CLIENT_SECRET|$OGA_APP_CDA_PORT|$OGA_APP_CDA_INSTANCE_CONFIG|$CDA_IDP_CLIENT_ID"
+)
+
+# ---------------------------------------------------------------------------
+# clean_oga_databases: wipe OGA databases before starting backends.
+#   SQLite  -> delete the .db file
+#   Postgres -> drop and recreate the database
+# ---------------------------------------------------------------------------
+clean_oga_databases() {
+  echo "Cleaning OGA databases (driver: $OGA_DB_DRIVER)..."
+
+  if [[ "$OGA_DB_DRIVER" == "sqlite" ]]; then
+    for entry in "${OGA_INSTANCES[@]}"; do
+      IFS='|' read -r name _ db_path _ _ _ _ _ <<< "$entry"
+
+      # db_path may be relative (./foo.db); resolve it from the oga directory
+      local resolved_path
+      if [[ "$db_path" == /* ]]; then
+        resolved_path="$db_path"
+      else
+        resolved_path="$ROOT_DIR/oga/${db_path#./}"
+      fi
+
+      if [[ -f "$resolved_path" ]]; then
+        echo "  Deleting SQLite DB for $name: $resolved_path"
+        rm -f "$resolved_path"
+      else
+        echo "  SQLite DB for $name not found (nothing to delete): $resolved_path"
+      fi
+    done
+
+  elif [[ "$OGA_DB_DRIVER" == "postgres" ]]; then
+    if ! command -v psql >/dev/null 2>&1; then
+      echo "psql is required for Postgres DB cleaning but was not found in PATH"
+      exit 1
+    fi
+
+    # Connect to the maintenance DB to drop/recreate the OGA database.
+    # We use OGA_DB_NAME as the single shared Postgres database for all instances.
+    local pg_env
+    pg_env="PGPASSWORD=$OGA_DB_PASSWORD"
+
+    local psql_opts=(-h "$OGA_DB_HOST" -p "$OGA_DB_PORT" -U "$OGA_DB_USER")
+
+    echo "  Dropping and recreating Postgres database: $OGA_DB_NAME"
+
+    # Terminate active connections so the drop doesn't hang
+    env $pg_env psql "${psql_opts[@]}" -d postgres -c \
+      "SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+        WHERE datname = '$OGA_DB_NAME'
+          AND pid <> pg_backend_pid();" \
+      >/dev/null
+
+    env $pg_env psql "${psql_opts[@]}" -d postgres -c "DROP DATABASE IF EXISTS \"$OGA_DB_NAME\";"
+    env $pg_env psql "${psql_opts[@]}" -d postgres -c "CREATE DATABASE \"$OGA_DB_NAME\";"
+    echo "  Postgres database recreated: $OGA_DB_NAME"
+
+  else
+    echo "Unknown OGA_DB_DRIVER '$OGA_DB_DRIVER'; skipping DB clean."
+  fi
+}
+
 pids=()
 names=()
 
@@ -207,14 +280,12 @@ start_service "backend" "$ROOT_DIR/backend" env \
   AUTH_JWKS_INSECURE_SKIP_VERIFY="$AUTH_JWKS_INSECURE_SKIP_VERIFY" \
   go run ./cmd/server/main.go
 
-# OGA instance registry
-# Each row: name | backend_port | db_path | nsw_client_id | nsw_client_secret | app_port | instance_config | idp_client_id
-OGA_INSTANCES=(
-  "npqs|$OGA_NPQS_PORT|$OGA_NPQS_DB_PATH|$OGA_NSW_NPQS_CLIENT_ID|$OGA_NSW_NPQS_CLIENT_SECRET|$OGA_APP_NPQS_PORT|$OGA_APP_NPQS_INSTANCE_CONFIG|$NPQS_IDP_CLIENT_ID"
-  "fcau|$OGA_FCAU_PORT|$OGA_FCAU_DB_PATH|$OGA_NSW_FCAU_CLIENT_ID|$OGA_NSW_FCAU_CLIENT_SECRET|$OGA_APP_FCAU_PORT|$OGA_APP_FCAU_INSTANCE_CONFIG|$FCAU_IDP_CLIENT_ID"
-  "ird|$OGA_IRD_PORT|$OGA_IRD_DB_PATH|$OGA_NSW_IRD_CLIENT_ID|$OGA_NSW_IRD_CLIENT_SECRET|$OGA_APP_IRD_PORT|$OGA_APP_IRD_INSTANCE_CONFIG|$IRD_IDP_CLIENT_ID"
-  "cda|$OGA_CDA_PORT|$OGA_CDA_DB_PATH|$OGA_NSW_CDA_CLIENT_ID|$OGA_NSW_CDA_CLIENT_SECRET|$OGA_APP_CDA_PORT|$OGA_APP_CDA_INSTANCE_CONFIG|$CDA_IDP_CLIENT_ID"
-)
+# Clean OGA databases before launching backends
+if [[ "$CLEAN_DB" == "true" ]]; then
+  clean_oga_databases
+else
+  echo "Skipping OGA database clean (--skip-clean-db)"
+fi
 
 # Launch OGA backends
 for entry in "${OGA_INSTANCES[@]}"; do
@@ -283,8 +354,9 @@ done
     printf "  - oga-app-%-5s -> http://localhost:%s\n" "$name" "$app_port"
   done
   echo
-  echo "IDP start: $RUN_IDP"
+  echo "IDP start:      $RUN_IDP"
   echo "Migrations run: $RUN_MIGRATIONS"
+  echo "DB cleaned:     $CLEAN_DB"
   echo
   echo "Press Ctrl+C to stop all services started by this script."
 }
