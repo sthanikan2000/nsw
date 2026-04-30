@@ -47,7 +47,17 @@ crypto:
       key_file: "repository/resources/security/signing.key"
 
 jwt:
-    preferred_key_id: "default-key"
+  preferred_key_id: "default-key"
+
+email:
+  smtp:
+    host: {{.THUNDER_SMTP_HOST}}
+    port: {{.THUNDER_SMTP_PORT}}
+    username: {{.THUNDER_SMTP_USERNAME}}
+    password: {{.THUNDER_SMTP_PASSWORD}}
+    from_address: {{.THUNDER_SMTP_FROM_ADDRESS}}
+    enable_start_tls: {{.THUNDER_SMTP_ENABLE_START_TLS}}
+    enable_authentication: {{.THUNDER_SMTP_ENABLE_AUTHENTICATION}}
 
 cors:
   allowed_origins:
