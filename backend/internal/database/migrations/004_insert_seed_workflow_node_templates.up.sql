@@ -29,6 +29,9 @@ VALUES
             "formId": "11111111-1111-1111-1111-111111111111",
             "submission": {
                 "url": "https://7b0eb5f0-1ee3-4a0c-8946-82a893cb60c2.mock.pstmn.io/api/cusdec",
+                "request": {
+                    "taskCode": "cusdec_submission_v1"
+                },
                 "response": {
                     "display": {
                         "formId": "71e5e73a-ebb2-4750-aaa4-f71087adac43"
