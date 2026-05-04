@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.source="https://github.com/OpenNSW/nsw"
 LABEL org.opencontainers.image.description="NSW Backend API Service"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -d /app appuser
 
@@ -30,9 +30,6 @@ USER appuser:appuser
 
 # Expose the application port (configurable via SERVER_PORT env var)
 EXPOSE 8080
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-	CMD wget -qO- http://localhost:${SERVER_PORT:-8080}/health || exit 1
 
 # Run the binary
 CMD ["/app/server"]
