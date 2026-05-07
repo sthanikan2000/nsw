@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Badge, Box, Button, Dialog, Flex, IconButton, Select, Spinner, Text, TextField } from '@radix-ui/themes'
-import { MagnifyingGlassIcon, PlusIcon } from '@radix-ui/react-icons'
+import { MagnifyingGlassIcon, PlusIcon, ArrowRightIcon, Cross2Icon } from '@radix-ui/react-icons'
 import type { ConsignmentSummary, TradeFlow, ConsignmentState, CHA } from '../services/types/consignment.ts'
 import { createConsignment, getAllConsignments, getCHAs } from '../services/consignment.ts'
 import { useApi } from '../services/ApiContext'
 import { useRole } from '../services/RoleContext'
 import { getStateColor, formatState, formatDate } from '../utils/consignmentUtils'
 import { PaginationControl } from '../components/common/PaginationControl'
-import { Cross2Icon, ArrowRightIcon } from '@radix-ui/react-icons'
+
 import { CHASearch, type CHAOption } from '../components/CHAPicker/CHASearch'
 
 // Local alias (avoid a second themes import just for Text-as)
@@ -46,9 +46,6 @@ export function ConsignmentScreen() {
         const data = await getCHAs(api)
         const options: CHAOption[] = data.map((c: CHA) => ({ id: c.id, name: c.name }))
         setChaOptions(options)
-        if (!newChaId && options.length > 0) {
-          setNewChaId(options[0].id)
-        }
       } catch (error) {
         console.error('Failed to fetch CHAs:', error)
       }
@@ -92,7 +89,7 @@ export function ConsignmentScreen() {
   const resetNewConsignment = () => {
     setNewStep('trade-flow')
     setNewFlow(null)
-    setNewChaId(chaOptions.length > 0 ? chaOptions[0].id : '')
+    setNewChaId('')
   }
 
   const handleNewOpenChange = (open: boolean) => {
@@ -272,7 +269,7 @@ export function ConsignmentScreen() {
               </Button>
             </Dialog.Close>
             {newStep === 'cha' ? (
-              <Button onClick={handleCreateShell} disabled={!newFlow || creating} loading={creating}>
+              <Button onClick={handleCreateShell} disabled={!newFlow || !newChaId || creating} loading={creating}>
                 {creating ? 'Creating...' : 'Create Consignment'}
               </Button>
             ) : null}
