@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workflowManagerV2 "github.com/OpenNSW/go-temporal-workflow"
+	"github.com/OpenNSW/nsw/internal/profile/cha"
 	"github.com/OpenNSW/nsw/internal/workflow/model"
 )
 
@@ -105,10 +106,85 @@ func (m *MockWMV2) GetStatus(ctx context.Context, workflowID string) (*workflowM
 	return args.Get(0).(*workflowManagerV2.WorkflowInstance), args.Error(1)
 }
 
+// MockCHAService implements cha.Service for testing.
+type MockCHAService struct {
+	mock.Mock
+}
+
+func (m *MockCHAService) GetByID(ctx context.Context, id string) (*cha.Record, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*cha.Record), args.Error(1)
+}
+
+func (m *MockCHAService) GetByEmail(ctx context.Context, email string) (*cha.Record, error) {
+	args := m.Called(ctx, email)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*cha.Record), args.Error(1)
+}
+
+func (m *MockCHAService) List(ctx context.Context) ([]cha.Record, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]cha.Record), args.Error(1)
+}
+
+func (m *MockCHAService) Health() error {
+	return m.Called().Error(0)
+}
+
+// --- CreateConsignmentShell ---
+
+func TestConsignmentService_CreateConsignmentShell_CHANotFound(t *testing.T) {
+	db, _ := setupTestDB(t)
+	mockCHA := new(MockCHAService)
+	svc := NewConsignmentService(db, nil, mockCHA)
+	ctx := context.Background()
+	chaID := uuid.NewString()
+
+	mockCHA.On("GetByID", ctx, chaID).Return(nil, cha.ErrCHANotFound)
+
+	result, err := svc.CreateConsignmentShell(ctx, model.ConsignmentFlowImport, chaID, "trader1")
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, cha.ErrCHANotFound))
+	mockCHA.AssertExpectations(t)
+}
+
+func TestConsignmentService_CreateConsignmentShell_Success(t *testing.T) {
+	db, sqlMock := setupTestDB(t)
+	mockCHA := new(MockCHAService)
+	svc := NewConsignmentService(db, nil, mockCHA)
+	ctx := context.Background()
+	chaID := uuid.NewString()
+	consignmentID := uuid.NewString()
+	traderID := "trader1"
+
+	mockCHA.On("GetByID", ctx, chaID).Return(&cha.Record{ID: chaID, Name: "Test CHA"}, nil)
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec(`INSERT INTO "consignments"`).WillReturnResult(sqlmock.NewResult(1, 1))
+	sqlMock.ExpectCommit()
+
+	sqlMock.ExpectQuery(`SELECT \* FROM "consignments" WHERE id = \$1`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "flow", "trader_id", "cha_id", "state", "items"}).
+			AddRow(consignmentID, "IMPORT", traderID, chaID, "INITIALIZED", []byte("[]")))
+
+	result, err := svc.CreateConsignmentShell(ctx, model.ConsignmentFlowImport, chaID, traderID)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, consignmentID, result.ID)
+	mockCHA.AssertExpectations(t)
+	assert.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
 func TestConsignmentService_GetConsignmentByID(t *testing.T) {
 	db, sqlMock := setupTestDB(t)
 	mockWM := new(MockWMV2)
-	svc := NewConsignmentService(db, nil)
+	svc := NewConsignmentService(db, nil, nil)
 	require.NoError(t, svc.RegisterWorkflowManager(mockWM))
 
 	ctx := context.Background()
@@ -138,7 +214,7 @@ func TestConsignmentService_GetConsignmentByID(t *testing.T) {
 
 func TestConsignmentService_GetConsignmentsByTraderID_Empty(t *testing.T) {
 	db, sqlMock := setupTestDB(t)
-	svc := NewConsignmentService(db, nil)
+	svc := NewConsignmentService(db, nil, nil)
 	ctx := context.Background()
 	traderID := "trader1"
 
@@ -158,7 +234,7 @@ func TestConsignmentService_GetConsignmentsByTraderID_Empty(t *testing.T) {
 
 func TestConsignmentService_GetConsignmentsByTraderID_CountError(t *testing.T) {
 	db, sqlMock := setupTestDB(t)
-	svc := NewConsignmentService(db, nil)
+	svc := NewConsignmentService(db, nil, nil)
 	ctx := context.Background()
 	traderID := "trader1"
 

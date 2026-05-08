@@ -7,19 +7,19 @@ import (
 	"net/http"
 
 	"github.com/OpenNSW/nsw/internal/auth"
+	"github.com/OpenNSW/nsw/internal/profile/cha"
 	"github.com/OpenNSW/nsw/internal/workflow/model"
 	"github.com/OpenNSW/nsw/internal/workflow/service"
 	"github.com/OpenNSW/nsw/utils"
-	"gorm.io/gorm"
 )
 
 type ConsignmentRouter struct {
 	cs  *service.ConsignmentService
-	cha *service.CHAService
+	cha cha.Service
 }
 
-func NewConsignmentRouter(cs *service.ConsignmentService, cha *service.CHAService) *ConsignmentRouter {
-	return &ConsignmentRouter{cs: cs, cha: cha}
+func NewConsignmentRouter(cs *service.ConsignmentService, chaService cha.Service) *ConsignmentRouter {
+	return &ConsignmentRouter{cs: cs, cha: chaService}
 }
 
 // HandleCreateConsignment handles POST /api/v1/consignments
@@ -49,7 +49,7 @@ func (c *ConsignmentRouter) HandleCreateConsignment(w http.ResponseWriter, r *ht
 	// Stage 1: create shell only
 	consignment, err := c.cs.CreateConsignmentShell(r.Context(), req.Flow, req.ChaID, traderID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, cha.ErrCHANotFound) {
 			http.Error(w, "CHA not found", http.StatusNotFound)
 			return
 		}
@@ -106,9 +106,9 @@ func (c *ConsignmentRouter) HandleGetConsignments(w http.ResponseWriter, r *http
 	// Role-Based Identity Resolution
 	switch role {
 	case "cha":
-		cha, err := c.cha.GetCHAByEmail(ctx, authCtx.User.Email)
+		chaRecord, err := c.cha.GetByEmail(ctx, authCtx.User.Email)
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			if errors.Is(err, cha.ErrCHANotFound) {
 				http.Error(w, "CHA profile not found", http.StatusForbidden)
 				return
 			}
@@ -116,7 +116,7 @@ func (c *ConsignmentRouter) HandleGetConsignments(w http.ResponseWriter, r *http
 			http.Error(w, "failed to resolve default CHA profile", http.StatusInternalServerError)
 			return
 		}
-		filter.ChaID = &cha.ID
+		filter.ChaID = &chaRecord.ID
 	case "trader":
 		filter.TraderID = &authCtx.User.ID
 	default:
