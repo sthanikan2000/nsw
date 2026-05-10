@@ -6,14 +6,30 @@ import { JsonForms } from '@jsonforms/react'
 import { radixRenderers } from '@opennsw/jsonforms-renderers'
 import type { TaskFormData } from './SimpleForm.tsx'
 
+type DisplayPhase = 'waiting' | 'failed' | 'completed'
+
+type DisplayText = string | Partial<Record<DisplayPhase, string>>
+
 type WaitForEventDisplay = {
-  title?: string
-  description?: string
+  title?: DisplayText
+  description?: DisplayText
 }
 
 export type WaitForEventConfigs = {
   display?: WaitForEventDisplay
   eventReviewForm?: TaskFormData
+}
+
+function resolveDisplayText(value: DisplayText | undefined, phase: DisplayPhase): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') return value
+  return value[phase]
+}
+
+function pluginStateToPhase(pluginState: string): DisplayPhase {
+  if (pluginState === 'RECEIVED_CALLBACK') return 'completed'
+  if (pluginState === 'NOTIFY_FAILED') return 'failed'
+  return 'waiting'
 }
 
 // Shared radar/sonar animation used in both NOTIFIED_SERVICE and post-retry state.
@@ -241,8 +257,9 @@ export default function WaitForEvent(props: { configs: WaitForEventConfigs; plug
 
   const workflowId = preConsignmentId || consignmentId
   const display = props.configs.display
-  const title = display?.title ?? 'Waiting for event'
-  const description = display?.description
+  const phase = pluginStateToPhase(props.pluginState)
+  const title = resolveDisplayText(display?.title, phase) ?? 'Waiting for event'
+  const description = resolveDisplayText(display?.description, phase)
 
   const handleRetry = async () => {
     if (!workflowId || !taskId) return

@@ -4,7 +4,7 @@ import { sendTaskCommand } from '../services/task.ts'
 import { useApi } from '../services/ApiContext'
 
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@radix-ui/themes'
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core'
 import { autoFillForm } from '../utils/formUtils'
@@ -44,8 +44,12 @@ function TraderForm(props: { formInfo: TaskFormData; pluginState: string }) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const READ_ONLY_STATES = ['OGA_REVIEWED', 'SUBMITTED', 'OGA_ACKNOWLEDGED']
+  const READ_ONLY_STATES = ['OGA_REVIEWED', 'SUBMITTED', 'OGA_ACKNOWLEDGED', 'RECEIVED_CALLBACK', 'COMPLETED']
   const isReadOnly = READ_ONLY_STATES.includes(props.pluginState)
+
+  useEffect(() => {
+    setData(props.formInfo.formData || {})
+  }, [props.formInfo.formData])
 
   const isPreConsignment = location.pathname.includes('/pre-consignments/')
   const workflowId = preConsignmentId || consignmentId
