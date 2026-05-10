@@ -153,9 +153,9 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 	})
 	notificationManager.RegisterEmailChannel(emailChannel)
 
-	// nsw-task-flow HTTP routers — trader-facing, OGA-facing, and consignment-task discovery.
+	// nsw-task-flow HTTP routers — trader-facing and consignment-task discovery.
+	// The /api/oga/* surface lives in the standalone OGA service (oga/), not here.
 	tfRouter := taskv2router.New(taskFlowRuntime.Manager(), taskFlowRuntime.ParentManager(), registry)
-	ogaRouter := taskv2router.NewOGARouter(taskFlowRuntime.Manager(), registry)
 	consignmentTasksRouter := taskv2router.NewConsignmentTasksRouter(taskFlowRuntime.Manager(), registry)
 
 	withAuth := authManager.Middleware()
@@ -201,13 +201,6 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 	// Discover the dynamic nsw-task-flow task IDs that belong to a consignment
 	// — used by trader-app to pivot from consignment detail to active task.
 	mux.Handle("GET /api/v1/consignments/{id}/tasks", withAuth(http.HandlerFunc(consignmentTasksRouter.HandleListConsignmentTasks)))
-
-	// ── OGA-app surface (officer review queue + actions) ─────────────────────
-	mux.Handle("GET /api/oga/workflows", withAuth(http.HandlerFunc(ogaRouter.HandleListWorkflows)))
-	mux.Handle("GET /api/oga/applications", withAuth(http.HandlerFunc(ogaRouter.HandleListApplications)))
-	mux.Handle("GET /api/oga/applications/{taskId}", withAuth(http.HandlerFunc(ogaRouter.HandleGetApplication)))
-	mux.Handle("POST /api/oga/applications/{taskId}/review", withAuth(http.HandlerFunc(ogaRouter.HandleSubmitReview)))
-	mux.Handle("POST /api/oga/applications/{taskId}/feedback", withAuth(http.HandlerFunc(ogaRouter.HandleSubmitFeedback)))
 
 	// ── Uploads, payments, webhooks ──────────────────────────────────────────
 	mux.Handle("POST /api/v1/uploads", withAuth(http.HandlerFunc(uploadHandler.Upload)))
