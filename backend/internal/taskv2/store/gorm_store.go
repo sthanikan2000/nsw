@@ -4,35 +4,64 @@
 package store
 
 import (
+	"database/sql/driver"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	tfstore "github.com/OpenNSW/nsw-task-flow/store"
 
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
+// jsonbBytes carries the raw JSON payload for the task_workflow_tasks.data
+// JSONB column. Using a local type keeps us off gorm.io/datatypes (which drags
+// in a MySQL driver chain we don't use).
+type jsonbBytes []byte
+
+func (j jsonbBytes) Value() (driver.Value, error) {
+	if len(j) == 0 {
+		return nil, nil
+	}
+	return []byte(j), nil
+}
+
+func (j *jsonbBytes) Scan(src any) error {
+	if src == nil {
+		*j = nil
+		return nil
+	}
+	switch v := src.(type) {
+	case []byte:
+		*j = append((*j)[:0], v...)
+	case string:
+		*j = []byte(v)
+	default:
+		return fmt.Errorf("jsonbBytes.Scan: unsupported type %T", src)
+	}
+	return nil
+}
+
 // taskRow is the GORM model for the task_workflow_tasks table.
-// It mirrors store.TaskRecord, with the JSONB Data column persisted via gorm.io/datatypes.
+// It mirrors store.TaskRecord, with the JSONB Data column persisted as raw bytes.
 type taskRow struct {
-	TaskID               string         `gorm:"column:task_id;primaryKey"`
-	TaskType             string         `gorm:"column:task_type"`
-	UserFormID           string         `gorm:"column:user_form_id"`
-	ReviewerFormID       string         `gorm:"column:reviewer_form_id"`
-	Status               string         `gorm:"column:status"`
-	ParentWorkflowID     string         `gorm:"column:parent_workflow_id;index"`
-	ParentRunID          string         `gorm:"column:parent_run_id"`
-	ParentNodeID         string         `gorm:"column:parent_node_id"`
-	TaskWorkflowID       string         `gorm:"column:task_workflow_id;index"`
-	TaskRunID            string         `gorm:"column:task_run_id"`
-	SubTaskNodeID        string         `gorm:"column:subtask_node_id"`
-	ActiveTaskTemplateID string         `gorm:"column:active_task_template_id"`
-	Data                 datatypes.JSON `gorm:"column:data;type:jsonb;not null"`
-	CreatedAt            time.Time      `gorm:"column:created_at"`
-	UpdatedAt            time.Time      `gorm:"column:updated_at"`
+	TaskID               string     `gorm:"column:task_id;primaryKey"`
+	TaskType             string     `gorm:"column:task_type"`
+	UserFormID           string     `gorm:"column:user_form_id"`
+	ReviewerFormID       string     `gorm:"column:reviewer_form_id"`
+	Status               string     `gorm:"column:status"`
+	ParentWorkflowID     string     `gorm:"column:parent_workflow_id;index"`
+	ParentRunID          string     `gorm:"column:parent_run_id"`
+	ParentNodeID         string     `gorm:"column:parent_node_id"`
+	TaskWorkflowID       string     `gorm:"column:task_workflow_id;index"`
+	TaskRunID            string     `gorm:"column:task_run_id"`
+	SubTaskNodeID        string     `gorm:"column:subtask_node_id"`
+	ActiveTaskTemplateID string     `gorm:"column:active_task_template_id"`
+	Data                 jsonbBytes `gorm:"column:data;type:jsonb;not null"`
+	CreatedAt            time.Time  `gorm:"column:created_at"`
+	UpdatedAt            time.Time  `gorm:"column:updated_at"`
 }
 
 func (taskRow) TableName() string { return "task_workflow_tasks" }

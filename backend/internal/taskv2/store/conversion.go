@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	tfstore "github.com/OpenNSW/nsw-task-flow/store"
-	"gorm.io/datatypes"
 )
 
 func toRow(r tfstore.TaskRecord) (taskRow, error) {
@@ -30,7 +29,7 @@ func toRow(r tfstore.TaskRecord) (taskRow, error) {
 		TaskRunID:            r.TaskRunID,
 		SubTaskNodeID:        r.SubTaskNodeID,
 		ActiveTaskTemplateID: r.ActiveTaskTemplateID,
-		Data:                 datatypes.JSON(dataBytes),
+		Data:                 jsonbBytes(dataBytes),
 		CreatedAt:            r.CreatedAt,
 	}, nil
 }
