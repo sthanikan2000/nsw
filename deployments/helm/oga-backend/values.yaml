@@ -18,13 +18,11 @@ config:
     driver: postgres
     host: nsw-db
     port: 5432
-    sslMode: disable
+    sslMode: "require"
     credentialsSecretName: ""
   defaultFormId: default
   nswApiBaseUrl: ""
-  # Specific to each agency (should be overridden)
-  nswClientId: ""
-  nswClientSecret: ""
+  nswCredentialsSecretName: ""
   nswTokenUrl: ""
   allowedOrigins: ""
 
