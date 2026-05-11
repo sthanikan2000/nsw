@@ -55,19 +55,19 @@ jobs:
             description: NSW Database Migrations
 
           - service_name: OGA Backend
-            image_name: nsw-oga-backend
+            image_name: oga-backend
             context: ./oga
             dockerfile: ./oga/Dockerfile
             description: NSW OGA Backend Service
 
           - service_name: Trader Portal
-            image_name: nsw-trader-portal
+            image_name: trader-app
             context: ./portals
             dockerfile: ./portals/apps/trader-app/Dockerfile
             description: NSW Trader Portal Frontend
 
           - service_name: OGA Portal
-            image_name: nsw-oga-portal
+            image_name: oga-app
             context: ./portals
             dockerfile: ./portals/apps/oga-app/Dockerfile
             description: NSW OGA Officer Portal Frontend
@@ -200,26 +200,40 @@ jobs:
           retention-days: 1
 
       # Trivy scans the pushed image for CRITICAL/HIGH CVEs.
-      # continue-on-error keeps the release moving if Trivy itself fails.
+      - name: Setup Trivy
+        if: steps.release-mode.outputs.enabled == 'true'
+        uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
+        with:
+          version: v0.69.3
+          
       - name: Run Trivy vulnerability scanner
         id: trivy-scan
         if: steps.release-mode.outputs.enabled == 'true'
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
-          version: v0.69.3
-          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
-          format: sarif
-          output: trivy-${{ matrix.image_name }}.sarif
-          severity: CRITICAL,HIGH
-          exit-code: '1'
-          ignore-unfixed: false
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format sarif \
+            --output "trivy-${{ matrix.image_name }}.sarif" \
+            --exit-code 1 \
+            "${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+
 
       - name: Upload Trivy results
         if: always() && steps.trivy-scan.outcome == 'success'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.image_name }}.sarif
+
+      - name: Print Trivy findings (debug)
+        if: always() && steps.trivy-scan.outcome != 'skipped'
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --format table \
+            ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
 
       - name: Generate service summary
         if: always()
@@ -347,20 +361,21 @@ jobs:
 
             This release publishes Docker images for all deployable NSW services and portals.
 
-            ### Published Images
+            ### Published Image Targets
             - `${{ env.REGISTRY }}/${{ github.repository }}/nsw-backend:${{ needs.collate-digests.outputs.version }}`
             - `${{ env.REGISTRY }}/${{ github.repository }}/nsw-api-migrations:${{ needs.collate-digests.outputs.version }}`
-            - `${{ env.REGISTRY }}/${{ github.repository }}/nsw-oga-backend:${{ needs.collate-digests.outputs.version }}`
-            - `${{ env.REGISTRY }}/${{ github.repository }}/nsw-trader-portal:${{ needs.collate-digests.outputs.version }}`
-            - `${{ env.REGISTRY }}/${{ github.repository }}/nsw-oga-portal:${{ needs.collate-digests.outputs.version }}`
+            - `${{ env.REGISTRY }}/${{ github.repository }}/oga-backend:${{ needs.collate-digests.outputs.version }}`
+            - `${{ env.REGISTRY }}/${{ github.repository }}/trader-app:${{ needs.collate-digests.outputs.version }}`
+            - `${{ env.REGISTRY }}/${{ github.repository }}/oga-app:${{ needs.collate-digests.outputs.version }}`
 
             ### Pull Images
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/nsw-backend:${{ needs.collate-digests.outputs.version }}
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/nsw-api-migrations:${{ needs.collate-digests.outputs.version }}
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/nsw-oga-backend:${{ needs.collate-digests.outputs.version }}
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/nsw-trader-portal:${{ needs.collate-digests.outputs.version }}
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/nsw-oga-portal:${{ needs.collate-digests.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/oga-backend:${{ needs.collate-digests.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/trader-app:${{ needs.collate-digests.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/oga-app:${{ needs.collate-digests.outputs.version }}
+
             ```
 
             ### Image Digests

@@ -127,7 +127,9 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	paymentHandler := payments.NewHTTPHandler(paymentService)
 
-	authManager, err := auth.NewManager(db, cfg.Auth)
+	userProfileService := user.NewService(db)
+
+	authManager, err := auth.NewManager(userProfileService, cfg.Auth)
 	if err != nil {
 		_ = taskFlowRuntime.Close()
 		temporalClient.Close()
