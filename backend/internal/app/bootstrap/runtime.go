@@ -130,7 +130,10 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 		data, err := tm.StartSubTask(payload)
 		if err == nil {
 			// Complete the acticity
-			tm.HandleTaskCompletion(payload.WorkflowID, data)
+			completionErr := tm.HandleTaskCompletion(payload.WorkflowID, data)
+			if completionErr != nil {
+				slog.Error("taskv2 task: failed to handle task completion", "error", completionErr)
+			}
 		}
 		return data, err
 	}

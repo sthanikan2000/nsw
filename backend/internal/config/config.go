@@ -83,7 +83,7 @@ func Load() (*Config, error) {
 			Port:               serverPort,
 			ServiceURL:         getEnvOrDefault("SERVICE_URL", fmt.Sprintf("http://localhost:%d", serverPort)),
 			ServicesConfigPath: getEnvOrDefault("SERVICES_CONFIG_PATH", "configs/services.json"),
-			TemplatesDir:       getEnvOrDefault("TASK_TEMPLATES_DIR", "internal/template/data/npqs"),
+			TemplatesDir:       getEnvOrDefault("TASK_TEMPLATES_DIR", "internal/template/data"),
 			TaskFlowDevMode:    getBoolOrDefault("TASK_FLOW_DEV_MODE", true),
 			Debug:              getBoolOrDefault("SERVER_DEBUG", true),
 			LogLevel:           parseLogLevel(getEnvOrDefault("SERVER_LOG_LEVEL", "info")),
