@@ -88,7 +88,7 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 		{"APPLICATION", customplugins.NewOfficerInputPlugin(cfg.BackendBaseURL, cfg.DevMode)},
 		{"WAIT_FOR_EVENT", customplugins.NewEventWaitPlugin(cfg.BackendBaseURL, cfg.DevMode)},
 		{"PAYMENT", customplugins.NewPaymentPlugin(cfg.BackendBaseURL, cfg.DevMode)},
-		{"FIRE_AND_FORGET", customplugins.NewHTTPPostPlugin(cfg.BackendBaseURL, cfg.DevMode)},
+		{"FIRE_AND_FORGET", customplugins.NewAPICallPlugin(cfg.BackendBaseURL, cfg.DevMode)},
 	}
 	for _, r := range registrations {
 		if err := pluginsRepo.Register(r.taskType, r.plugin); err != nil {
@@ -110,7 +110,7 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 		if tm == nil {
 			return nil, fmt.Errorf("taskv2 parent handler invoked before TaskManager was wired")
 		}
-		if err := tm.StartTask(payload); err != nil {
+		if _, err := tm.StartTask(payload); err != nil {
 			return nil, err
 		}
 		return nil, activity.ErrResultPending
@@ -131,7 +131,7 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 		if tm == nil {
 			return nil, fmt.Errorf("taskv2 task handler invoked before TaskManager was wired")
 		}
-		if err := tm.StartSubTask(payload); err != nil {
+		if _, err := tm.StartSubTask(payload); err != nil {
 			return nil, err
 		}
 		return nil, activity.ErrResultPending

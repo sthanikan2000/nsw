@@ -1,21 +1,8 @@
 {
     "template_id": "npqs-upload-ippc--post",
     "task_type": "FIRE_AND_FORGET",
-    "plugin_name": "generic_http_post",
+    "plugin_name": "generic_api_call",
     "plugin_properties": {
-        "url": "http://localhost:8081/api/oga/inject",
-        "task_code": "npqs_ippc_upload_v1",
-        "display": {
-            "title": {
-                "waiting": "Uploading to IPPC Hub",
-                "failed": "IPPC Hub Upload Notification Failed",
-                "completed": "IPPC Hub Upload Complete"
-            },
-            "description": {
-                "waiting": "Your phytosanitary certificate is being registered with the International Plant Protection Convention (IPPC) hub.",
-                "failed": "The IPPC upload notification could not be delivered. Please contact the NPQS helpdesk.",
-                "completed": "Your phytosanitary certificate has been successfully registered with the IPPC hub. The process is now complete."
-            }
-        }
+        "url": "http://ippc-hub/api/upload"
     }
 }
