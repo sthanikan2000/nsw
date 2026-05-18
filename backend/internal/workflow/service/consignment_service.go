@@ -10,6 +10,7 @@ import (
 
 	workflowmanager "github.com/OpenNSW/go-temporal-workflow"
 
+	"github.com/OpenNSW/nsw/internal/profile/cha"
 	"github.com/OpenNSW/nsw/internal/workflow/model"
 	"github.com/OpenNSW/nsw/utils"
 )
@@ -21,13 +22,15 @@ type ConsignmentService struct {
 	db               *gorm.DB
 	templateProvider TemplateProvider
 	wm               workflowmanager.Manager
+	chaService       cha.Service
 }
 
 // NewConsignmentService creates a new instance of ConsignmentService.
-func NewConsignmentService(db *gorm.DB, templateProvider TemplateProvider) *ConsignmentService {
+func NewConsignmentService(db *gorm.DB, templateProvider TemplateProvider, chaService cha.Service) *ConsignmentService {
 	return &ConsignmentService{
 		db:               db,
 		templateProvider: templateProvider,
+		chaService:       chaService,
 	}
 }
 
@@ -63,8 +66,7 @@ func (s *ConsignmentService) OnWorkflowStatusChanged(_ context.Context, tx *gorm
 // CreateConsignmentShell creates a shell consignment (Stage 1: Trader selects CHA). State is INITIALIZED; no workflow nodes.
 func (s *ConsignmentService) CreateConsignmentShell(ctx context.Context, flow model.ConsignmentFlow, chaID string, traderID string) (*model.ConsignmentDetailDTO, error) {
 	// Validate CHA exists
-	var cha model.CHA
-	if err := s.db.WithContext(ctx).First(&cha, "id = ?", chaID).Error; err != nil {
+	if _, err := s.chaService.GetByID(ctx, chaID); err != nil {
 		return nil, fmt.Errorf("CHA not found: %w", err)
 	}
 	consignment := &model.Consignment{

@@ -1,6 +1,10 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/OpenNSW/nsw/internal/profile/cha"
+)
 
 // ConsignmentFlow represents the flow type of a consignment.
 type ConsignmentFlow string
@@ -28,8 +32,8 @@ type Consignment struct {
 	Items    []ConsignmentItem `gorm:"type:jsonb;column:items;serializer:json;not null" json:"items"` // Items in the consignment
 
 	// CHA (Customs House Agent) – set at Stage 1 by Trader; CHA completes Stage 2 by selecting HS Code
-	CHAID string `gorm:"type:text;column:cha_id;not null" json:"chaId"` // Assigned CHA (Stage 1)
-	CHA   CHA    `gorm:"foreignKey:CHAID" json:"cha"`                   // Associated CHA entity
+	CHAID string     `gorm:"type:text;column:cha_id;not null" json:"chaId"` // Assigned CHA (Stage 1)
+	CHA   cha.Record `gorm:"foreignKey:CHAID" json:"cha"`                   // Associated CHA entity
 
 	// Relationships
 	Workflow *Workflow `gorm:"foreignKey:ID;references:ID" json:"-"` // Associated Workflow (1:1, same ID)

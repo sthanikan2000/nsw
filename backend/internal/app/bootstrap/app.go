@@ -12,6 +12,7 @@ import (
 	"github.com/OpenNSW/nsw/internal/database"
 	"github.com/OpenNSW/nsw/internal/middleware"
 	"github.com/OpenNSW/nsw/internal/payments"
+	"github.com/OpenNSW/nsw/internal/profile/cha"
 	"github.com/OpenNSW/nsw/internal/profile/user"
 	taskmanager "github.com/OpenNSW/nsw/internal/task/manager"
 	"github.com/OpenNSW/nsw/internal/task/plugin"
@@ -80,7 +81,7 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 	}
 
 	templateService := service.NewTemplateService(db)
-	chaService := service.NewCHAService(db)
+	chaService := cha.NewService(db)
 	hsCodeService := service.NewHSCodeService(db)
 
 	temporalClient, err := temporal.NewClient(cfg.Temporal)
@@ -89,7 +90,7 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to create temporal client: %w", err)
 	}
 
-	consignmentService := service.NewConsignmentService(db, templateService)
+	consignmentService := service.NewConsignmentService(db, templateService, chaService)
 	consignmentRouter := router.NewConsignmentRouter(consignmentService, chaService)
 
 	workflowRuntime, err := workflowruntime.NewRuntime(temporalClient, tm, templateService, consignmentService)
@@ -111,7 +112,7 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 	// preConsignmentRouter := router.NewPreConsignmentRouter(preConsignmentService)
 
 	hsCodeRouter := router.NewHSCodeRouter(hsCodeService)
-	chaRouter := router.NewCHARouter(chaService)
+	chaHandler := cha.NewHandler(chaService)
 
 	storageDriver, err := uploads.NewStorageFromConfig(ctx, cfg.Storage)
 	if err != nil {
@@ -200,7 +201,7 @@ func Build(ctx context.Context, cfg *config.Config) (*App, error) {
 	mux.Handle("POST /api/v1/tasks", withAuth(http.HandlerFunc(tmHandler.HandleExecuteTask)))
 	mux.Handle("GET /api/v1/tasks/{id}", withAuth(http.HandlerFunc(tmHandler.HandleGetTask)))
 	mux.Handle("GET /api/v1/hscodes", withAuth(http.HandlerFunc(hsCodeRouter.HandleGetAllHSCodes)))
-	mux.Handle("GET /api/v1/chas", withAuth(http.HandlerFunc(chaRouter.HandleGetCHAs)))
+	mux.Handle("GET /api/v1/chas", withAuth(http.HandlerFunc(chaHandler.HandleGetCHAs)))
 	mux.Handle("POST /api/v1/consignments", withAuth(http.HandlerFunc(consignmentRouter.HandleCreateConsignment)))
 	mux.Handle("GET /api/v1/consignments/{id}", withAuth(http.HandlerFunc(consignmentRouter.HandleGetConsignmentByID)))
 	mux.Handle("PUT /api/v1/consignments/{id}", withAuth(http.HandlerFunc(consignmentRouter.HandleInitializeConsignment)))
