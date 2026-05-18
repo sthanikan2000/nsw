@@ -31,7 +31,7 @@ setup:
 	@echo "🔧 Setting up development environment..."
 	@command -v pnpm >/dev/null 2>&1 || { \
 		echo "📥 Installing pnpm globally..."; \
-		npm install -g pnpm@10.28.1; \
+		npm install -g pnpm@11.1.2; \
 	}
 	@echo "✅ pnpm is installed"
 	@$(MAKE) install
