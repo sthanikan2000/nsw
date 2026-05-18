@@ -556,7 +556,7 @@ This section tracks recommended future upgrades and the migration process.
 
 ### How to Update (Maintainer Guide)
 
-et's say we're going to `Update Node.js from v22.18.0 to v24.13.0` and `Update pnpm from 11.1.2 to 11.1.3`
+Let's say we're going to update the project dependencies.
 
 #### Step 1: Update Node.js to v24.13.0
 
