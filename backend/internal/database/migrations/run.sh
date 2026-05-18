@@ -61,6 +61,7 @@ MIGRATIONS=(
     "013_fcau_forms_seed.up.sql"
     "014_fcau_workflow_nodes_seed.up.sql"
     "015_fcau_workflow_seed.up.sql"
+    "016_create_company_records.up.sql"
 )
 
 echo "Starting database migrations..."
