@@ -97,6 +97,11 @@ $OGA_FORMS_PATH = if ($env:OGA_FORMS_PATH) { $env:OGA_FORMS_PATH } else { "./dat
 $OGA_DEFAULT_FORM_ID = if ($env:OGA_DEFAULT_FORM_ID) { $env:OGA_DEFAULT_FORM_ID } else { "default" }
 $OGA_ALLOWED_ORIGINS = if ($env:OGA_ALLOWED_ORIGINS) { $env:OGA_ALLOWED_ORIGINS } else { "*" }
 
+$OGA_FORM_SOURCE = if ($env:OGA_FORM_SOURCE) { $env:OGA_FORM_SOURCE } else { "github" }
+$OGA_FORM_GITHUB_REPO = if ($env:OGA_FORM_GITHUB_REPO) { $env:OGA_FORM_GITHUB_REPO } else { "OpenNSW/one-trade-templates" }
+$OGA_FORM_GITHUB_REF = if ($env:OGA_FORM_GITHUB_REF) { $env:OGA_FORM_GITHUB_REF } else { "main" }
+$OGA_FORM_MANIFEST_REFRESH_INTERVAL = if ($env:OGA_FORM_MANIFEST_REFRESH_INTERVAL) { $env:OGA_FORM_MANIFEST_REFRESH_INTERVAL } else { "5m" }
+
 $OGA_DB_DRIVER = if ($env:OGA_DB_DRIVER) { $env:OGA_DB_DRIVER } else { "sqlite" }
 $OGA_DB_HOST = if ($env:OGA_DB_HOST) { $env:OGA_DB_HOST } else { "localhost" }
 $OGA_DB_PORT = if ($env:OGA_DB_PORT) { $env:OGA_DB_PORT } else { "5432" }
@@ -276,6 +281,10 @@ foreach ($Instance in $OGA_INSTANCES) {
         OGA_FORMS_PATH = $OGA_FORMS_PATH
         OGA_DEFAULT_FORM_ID = $OGA_DEFAULT_FORM_ID
         OGA_ALLOWED_ORIGINS = $OGA_ALLOWED_ORIGINS
+        OGA_FORM_SOURCE = $OGA_FORM_SOURCE
+        OGA_FORM_GITHUB_REPO = $OGA_FORM_GITHUB_REPO
+        OGA_FORM_GITHUB_REF = $OGA_FORM_GITHUB_REF
+        OGA_FORM_MANIFEST_REFRESH_INTERVAL = $OGA_FORM_MANIFEST_REFRESH_INTERVAL
         OGA_NSW_API_BASE_URL = "http://localhost:${BACKEND_PORT}/api/v1"
         OGA_NSW_CLIENT_ID = $Instance.NswClientId
         OGA_NSW_CLIENT_SECRET = $Instance.NswClientSecret
